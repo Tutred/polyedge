@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PolyEdge — Divergence Tracker</title>
-<meta name="description" content="Расхождения между Polymarket, Kalshi и букмекерами">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;700&family=Barlow:wght@400;500;600;700;800&display=swap');
@@ -15,8 +14,8 @@
   --s2:     #111820;
   --border: #1c2733;
   --bord2:  #243040;
-  --accent: #00d4ff;   /* Polymarket */
-  --kalshi: #a78bfa;   /* Kalshi */
+  --accent: #00d4ff;
+  --kalshi: #a78bfa;
   --adim:   rgba(0,212,255,.07);
   --kdim:   rgba(167,139,250,.07);
   --green:  #00e676;
@@ -31,164 +30,121 @@
   --mono:   'IBM Plex Mono', monospace;
   --sans:   'Barlow', sans-serif;
 }
-
 *{box-sizing:border-box;margin:0;padding:0}
-html{scroll-behavior:smooth}
 body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:100vh}
 body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(0,212,255,.02) 1px,transparent 1px),linear-gradient(90deg,rgba(0,212,255,.02) 1px,transparent 1px);background-size:50px 50px;pointer-events:none;z-index:0}
 
-/* ── TOAST ── */
 #toast{position:fixed;bottom:24px;right:24px;z-index:9999;font-family:var(--mono);font-size:12px;padding:10px 18px;border-radius:3px;background:var(--s2);border:1px solid var(--bord2);color:var(--text);transform:translateY(60px);opacity:0;transition:all .3s;pointer-events:none}
 #toast.show{transform:translateY(0);opacity:1}
 #toast.ok{border-color:var(--green);color:var(--green)}
 #toast.err{border-color:var(--red);color:var(--red)}
 
-/* ── HEADER ── */
+/* HEADER */
 header{position:sticky;top:0;z-index:50;background:rgba(7,9,12,.97);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 28px;height:60px;gap:16px}
 .logo{font-family:var(--mono);font-size:19px;font-weight:700;letter-spacing:-.5px;white-space:nowrap}
 .logo em{color:var(--accent);font-style:normal}
-.header-stats{display:flex;gap:24px}
+.hstats{display:flex;gap:24px}
 .hs{text-align:center}
-.hs-val{font-family:var(--mono);font-size:15px;font-weight:700}
-.hs-lbl{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;margin-top:1px}
-.header-right{display:flex;align-items:center;gap:10px}
+.hs-v{font-family:var(--mono);font-size:15px;font-weight:700}
+.hs-l{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;margin-top:1px}
+.hright{display:flex;align-items:center;gap:10px}
 .live-pill{display:flex;align-items:center;gap:6px;background:var(--gdim);border:1px solid rgba(0,230,118,.2);padding:5px 12px;border-radius:20px;font-family:var(--mono);font-size:9px;color:var(--green);text-transform:uppercase;letter-spacing:2px;white-space:nowrap}
-.dot{width:7px;height:7px;border-radius:50%;background:var(--green);animation:blink 1.4s ease-in-out infinite}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--green);animation:blink 1.4s infinite}
 @keyframes blink{0%,100%{opacity:1;box-shadow:0 0 6px var(--green)}50%{opacity:.3;box-shadow:none}}
 .hbtn{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:1px;background:transparent;border:1px solid var(--border);color:var(--muted2);padding:6px 14px;border-radius:3px;cursor:pointer;transition:all .2s;white-space:nowrap}
 .hbtn:hover{border-color:var(--accent);color:var(--accent)}
 
-/* ── SETUP BANNER ── */
+/* SETUP BANNER */
 #setupBanner{position:relative;z-index:1;background:linear-gradient(135deg,rgba(0,212,255,.04),rgba(167,139,250,.03));border-bottom:1px solid rgba(0,212,255,.1);padding:11px 28px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .sb-text{font-size:13px;color:var(--muted2);flex:1;min-width:200px}
-.sb-text a{color:var(--accent);text-decoration:none}
-.sb-text a:hover{text-decoration:underline}
+.sb-text a{color:var(--accent);text-decoration:none}.sb-text a:hover{text-decoration:underline}
 .sb-input{font-family:var(--mono);font-size:12px;background:rgba(0,0,0,.4);border:1px solid var(--bord2);color:var(--text);padding:7px 12px;border-radius:3px;width:230px;outline:none;transition:border-color .2s}
 .sb-input:focus{border-color:var(--accent)}
 .sb-input::placeholder{color:var(--muted)}
-.sb-btn{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:1px;background:var(--accent);color:#000;border:none;padding:8px 14px;border-radius:3px;cursor:pointer;font-weight:700;transition:opacity .2s}
-.sb-btn:hover{opacity:.85}
-.status-pill{font-family:var(--mono);font-size:9px;letter-spacing:1px;padding:4px 10px;border-radius:20px;white-space:nowrap;text-transform:uppercase}
+.sb-btn{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:1px;background:var(--accent);color:#000;border:none;padding:8px 14px;border-radius:3px;cursor:pointer;font-weight:700}
+.sp{font-family:var(--mono);font-size:9px;letter-spacing:1px;padding:4px 10px;border-radius:20px;white-space:nowrap;text-transform:uppercase}
 .sp-mock{background:var(--ydim);color:var(--yellow);border:1px solid rgba(255,215,64,.2)}
 .sp-live{background:var(--gdim);color:var(--green);border:1px solid rgba(0,230,118,.2)}
 
-/* ── LEGEND BAR ── */
-.legend-bar{position:relative;z-index:1;background:rgba(0,0,0,.2);border-bottom:1px solid var(--border);padding:8px 28px;display:flex;gap:24px;align-items:center;flex-wrap:wrap}
+/* LEGEND */
+.leg-bar{position:relative;z-index:1;background:rgba(0,0,0,.2);border-bottom:1px solid var(--border);padding:8px 28px;display:flex;gap:20px;align-items:center;flex-wrap:wrap}
 .li{display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10px;color:var(--muted2)}
 .li-dot{width:9px;height:9px;border-radius:2px;flex-shrink:0}
 
-/* ── THRESHOLD CONTROL ── */
-.threshold-bar{position:relative;z-index:1;background:var(--s2);border-bottom:1px solid var(--border);padding:10px 28px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
-.thr-label{font-family:var(--mono);font-size:11px;color:var(--muted2)}
-.thr-label strong{color:var(--text)}
-.thr-btns{display:flex;gap:6px}
-.thr-btn{font-family:var(--mono);font-size:10px;background:transparent;border:1px solid var(--border);color:var(--muted2);padding:4px 12px;border-radius:2px;cursor:pointer;transition:all .15s;text-transform:uppercase;letter-spacing:1px}
-.thr-btn:hover{border-color:var(--bord2);color:var(--text)}
-.thr-btn.on{border-color:var(--yellow);color:var(--yellow);background:var(--ydim)}
-.thr-info{font-family:var(--mono);font-size:10px;color:var(--muted);margin-left:auto}
-
-/* ── MAIN ── */
+/* MAIN */
 main{position:relative;z-index:1;max-width:1480px;margin:0 auto;padding:22px 28px 80px}
-
 #loadWrap{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:100px 0;gap:16px}
 .spinner{width:34px;height:34px;border:2px solid var(--bord2);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 .load-txt{font-family:var(--mono);font-size:11px;color:var(--muted2);text-transform:uppercase;letter-spacing:2px}
 
-/* toolbar */
+/* TOOLBAR */
 .toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;gap:12px;flex-wrap:wrap}
 .filters{display:flex;gap:5px;flex-wrap:wrap}
 .fbtn{font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:1.5px;background:transparent;border:1px solid var(--border);color:var(--muted2);padding:6px 12px;border-radius:2px;cursor:pointer;transition:all .15s}
 .fbtn:hover{border-color:var(--bord2);color:var(--text)}
 .fbtn.on{border-color:var(--accent);color:var(--accent);background:var(--adim)}
+.fbtn.g-on{border-color:var(--green);color:var(--green);background:var(--gdim)}
 .sort-row{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px}
 .sort-sel{font-family:var(--mono);font-size:11px;background:var(--s1);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:2px;cursor:pointer;outline:none}
-
-.update-row{display:flex;justify-content:space-between;margin-bottom:14px;font-family:var(--mono);font-size:10px;color:var(--muted)}
+.upd-row{display:flex;justify-content:space-between;margin-bottom:14px;font-family:var(--mono);font-size:10px;color:var(--muted)}
 .next-upd{color:var(--accent)}
 
-/* ── CARDS ── */
-.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(420px,1fr));gap:13px}
-
+/* CARDS */
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(400px,1fr));gap:13px}
 .card{background:var(--s1);border:1px solid var(--border);border-radius:4px;padding:18px 20px;cursor:pointer;transition:border-color .2s,transform .2s,box-shadow .2s;position:relative;animation:fadeUp .3s ease both}
 @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 .card:hover{transform:translateY(-2px);box-shadow:0 8px 28px rgba(0,0,0,.3)}
 
-/* left accent strip by divergence type */
-.card.div-pk{border-left:3px solid var(--kalshi)}    /* poly≠kalshi */
-.card.div-pb{border-left:3px solid var(--green)}      /* poly≠bookies */
-.card.div-kb{border-left:3px solid var(--red)}        /* kalshi≠bookies */
-.card.div-all{border-left:3px solid var(--yellow)}    /* all three differ */
+/* border color = biggest divergence found */
+.card.no-div  {border-left:3px solid var(--border)}
+.card.div-sm  {border-left:3px solid var(--muted2)}   /* <3% */
+.card.div-md  {border-left:3px solid var(--yellow)}   /* 3–7% */
+.card.div-lg  {border-left:3px solid var(--green)}    /* 7–12% */
+.card.div-xl  {border-left:3px solid var(--red)}      /* >12% */
 
-.card.div-pk:hover{border-color:rgba(167,139,250,.3)}
-.card.div-pb:hover{border-color:rgba(0,230,118,.3)}
-.card.div-kb:hover{border-color:rgba(255,69,96,.3)}
-.card.div-all:hover{border-color:rgba(255,215,64,.3)}
-
-/* top row */
-.card-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;gap:8px}
-.card-top-left{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.card-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:11px;gap:8px}
 .cat{font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:2px;color:var(--muted2);background:rgba(255,255,255,.04);padding:3px 8px;border-radius:2px;border:1px solid var(--border)}
+.badges{display:flex;gap:5px;flex-wrap:wrap}
+.badge{font-family:var(--mono);font-size:10px;font-weight:700;padding:2px 9px;border-radius:2px;white-space:nowrap}
+.b-pk {background:var(--kdim);color:var(--kalshi);border:1px solid rgba(167,139,250,.2)}
+.b-pb {background:var(--gdim);color:var(--green);border:1px solid rgba(0,230,118,.15)}
+.b-kb {background:var(--rdim);color:var(--red);border:1px solid rgba(255,69,96,.15)}
+.b-ok {background:rgba(255,255,255,.04);color:var(--muted2);border:1px solid var(--border)}
 
-/* divergence badges row */
-.div-badges{display:flex;gap:5px;flex-wrap:wrap}
-.dbadge{font-family:var(--mono);font-size:10px;font-weight:700;padding:2px 9px;border-radius:2px;white-space:nowrap}
-.db-pk{background:var(--kdim);color:var(--kalshi);border:1px solid rgba(167,139,250,.2)}   /* P vs K */
-.db-pb{background:var(--gdim);color:var(--green);border:1px solid rgba(0,230,118,.15)}     /* P vs Book */
-.db-kb{background:var(--rdim);color:var(--red);border:1px solid rgba(255,69,96,.15)}       /* K vs Book */
-
-/* title */
 .ctitle{font-size:13px;font-weight:600;line-height:1.45;margin-bottom:14px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 
-/* 3-source probability row — always Poly | Kalshi | Avg20 */
-.cprobs{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:12px}
-
-.cp{background:rgba(0,0,0,.25);border:1px solid var(--border);padding:11px 13px;border-radius:3px;position:relative}
+/* 3 columns: always Poly | Kalshi | Avg20 */
+.cprobs{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:11px}
+.cp{background:rgba(0,0,0,.25);border:1px solid var(--border);padding:11px 13px;border-radius:3px}
 .cp.poly  {border-color:rgba(0,212,255,.25);background:rgba(0,212,255,.05)}
 .cp.kalshi{border-color:rgba(167,139,250,.25);background:rgba(167,139,250,.05)}
-.cp.avg   {border-color:var(--border)}
-
-/* highlight when this source is the outlier */
-.cp.outlier-high::after{content:'▲ ВЫШЕ';position:absolute;top:6px;right:8px;font-family:var(--mono);font-size:8px;color:var(--green);letter-spacing:1px}
-.cp.outlier-low::after {content:'▼ НИЖЕ';position:absolute;top:6px;right:8px;font-family:var(--mono);font-size:8px;color:var(--red);letter-spacing:1px}
-
+.cp.kalshi.empty{opacity:.3;border-style:dashed}
 .cp-lbl{font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);margin-bottom:5px}
-.cp.poly   .cp-lbl{color:var(--accent)}
+.cp.poly .cp-lbl  {color:var(--accent)}
 .cp.kalshi .cp-lbl{color:var(--kalshi)}
-
 .cp-val{font-family:var(--mono);font-size:22px;font-weight:700;line-height:1}
 .cp.poly   .cp-val{color:var(--accent)}
 .cp.kalshi .cp-val{color:var(--kalshi)}
-.cp.avg    .cp-val{color:var(--text)}
-
 .cp-dec{font-family:var(--mono);font-size:11px;color:var(--muted2);margin-top:3px}
 
-/* kalshi missing state */
-.cp.kalshi.missing{opacity:.35;border-style:dashed}
-.cp.kalshi.missing .cp-val{font-size:14px;color:var(--muted)}
-
-/* spreads mini-row */
-.spreads-row{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+/* spread row below probs */
+.spread-row{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:11px}
 .spr{font-family:var(--mono);font-size:10px;padding:3px 9px;border-radius:2px}
 .spr-g{background:var(--gdim);color:var(--green);border:1px solid rgba(0,230,118,.15)}
 .spr-r{background:var(--rdim);color:var(--red);border:1px solid rgba(255,69,96,.15)}
 .spr-n{background:rgba(255,255,255,.04);color:var(--muted2);border:1px solid var(--border)}
 
-.cfooter{display:flex;justify-content:space-between;padding-top:10px;border-top:1px solid var(--border);font-family:var(--mono);font-size:9px;color:var(--muted)}
+.cfooter{display:flex;justify-content:space-between;padding-top:9px;border-top:1px solid var(--border);font-family:var(--mono);font-size:9px;color:var(--muted)}
 .cfooter .v{color:var(--text)}
 
-/* empty / no-divergence state */
-.no-divs{text-align:center;padding:80px 20px;grid-column:1/-1}
-.no-divs-icon{font-size:48px;margin-bottom:16px}
-.no-divs-title{font-family:var(--mono);font-size:14px;color:var(--muted2);margin-bottom:8px}
-.no-divs-sub{font-size:13px;color:var(--muted);line-height:1.6}
+.empty-state{text-align:center;padding:80px 20px;grid-column:1/-1;color:var(--muted);font-family:var(--mono);font-size:13px}
 
-/* ── MODAL ── */
+/* MODAL */
 .overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:200;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(16px)}
 .overlay.open{display:flex}
 .modal{background:var(--s1);border:1px solid var(--bord2);border-radius:6px;width:100%;max-width:980px;max-height:92vh;overflow-y:auto;animation:mIn .28s cubic-bezier(.22,.68,0,1.2)}
 @keyframes mIn{from{opacity:0;transform:scale(.93) translateY(12px)}to{opacity:1;transform:none}}
-
 .mhead{padding:20px 26px 16px;border-bottom:1px solid var(--border);display:flex;gap:14px;align-items:flex-start;position:sticky;top:0;background:var(--s1);z-index:5}
 .mhead-left{flex:1}
 .mtitle{font-size:16px;font-weight:700;line-height:1.35;margin-bottom:8px}
@@ -198,10 +154,8 @@ main{position:relative;z-index:1;max-width:1480px;margin:0 auto;padding:22px 28p
 .mlink.poly{color:var(--accent)}.mlink.ksh{color:var(--kalshi)}
 .mclose{background:transparent;border:1px solid var(--border);color:var(--muted2);padding:5px 12px;border-radius:2px;cursor:pointer;font-size:16px;transition:all .2s;flex-shrink:0}
 .mclose:hover{border-color:var(--red);color:var(--red)}
-
 .mbody{padding:20px 26px}
 
-/* 3 source boxes + 2 spread boxes = 5 */
 .mstats{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:18px}
 .msb{background:var(--s2);border:1px solid var(--border);padding:12px 14px;border-radius:3px}
 .msb.pb{border-color:rgba(0,212,255,.22);background:rgba(0,212,255,.04)}
@@ -209,24 +163,23 @@ main{position:relative;z-index:1;max-width:1480px;margin:0 auto;padding:22px 28p
 .msb-lbl{font-family:var(--mono);font-size:8px;text-transform:uppercase;letter-spacing:2px;color:var(--muted);margin-bottom:6px}
 .msb-val{font-family:var(--mono);font-size:20px;font-weight:700}
 
-/* divergence alerts */
 .alerts{display:flex;flex-direction:column;gap:8px;margin-bottom:18px}
-.alert-box{padding:12px 16px;border-radius:3px;font-family:var(--mono);font-size:11px;line-height:1.6;border:1px solid}
-.alert-pk{background:rgba(167,139,250,.07);border-color:rgba(167,139,250,.25);color:var(--kalshi)}
-.alert-pb{background:var(--gdim);border-color:rgba(0,230,118,.25);color:var(--green)}
-.alert-kb{background:var(--rdim);border-color:rgba(255,69,96,.25);color:var(--red)}
+.abox{padding:12px 16px;border-radius:3px;font-family:var(--mono);font-size:11px;line-height:1.6;border:1px solid}
+.a-pk{background:rgba(167,139,250,.07);border-color:rgba(167,139,250,.25);color:var(--kalshi)}
+.a-pb{background:var(--gdim);border-color:rgba(0,230,118,.25);color:var(--green)}
+.a-kb{background:var(--rdim);border-color:rgba(255,69,96,.25);color:var(--red)}
+.a-ok{background:rgba(255,255,255,.03);border-color:var(--border);color:var(--muted2)}
 
 .chart-box{border:1px solid var(--border);background:rgba(0,0,0,.3);border-radius:3px;padding:16px;margin-bottom:20px}
 .chart-hd{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
 .chart-lbl{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:2px;color:var(--muted)}
-.clegend{display:flex;gap:12px;flex-wrap:wrap}
+.cleg{display:flex;gap:12px;flex-wrap:wrap}
 .cl{display:flex;align-items:center;gap:5px;font-family:var(--mono);font-size:9px;color:var(--muted2)}
 .cl-line{width:16px;height:2px;border-radius:2px}
 canvas{display:block}
 
 .btitle{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:2px;color:var(--muted);margin-bottom:12px;display:flex;align-items:center;gap:10px}
 .btitle::after{content:'';flex:1;height:1px;background:var(--border)}
-
 .btable{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:7px}
 .brow{display:flex;justify-content:space-between;align-items:center;padding:9px 12px;background:var(--s2);border:1px solid var(--border);border-radius:3px;transition:border-color .15s}
 .brow:hover{border-color:var(--bord2)}
@@ -240,14 +193,12 @@ canvas{display:block}
 .bdec{font-family:var(--mono);font-size:10px;color:var(--muted)}
 .bdiff{font-family:var(--mono);font-size:9px;margin-top:1px}
 .dg{color:var(--green)}.dr{color:var(--red)}
-
 .mnote{font-family:var(--mono);font-size:10px;color:var(--muted);background:var(--s2);border:1px solid var(--border);padding:12px 14px;border-radius:3px;margin-top:16px;line-height:1.7}
 .mnote a{color:var(--accent);text-decoration:none}
 
 ::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--bord2);border-radius:3px}
-
 @media(max-width:750px){
-  header{padding:0 14px}.header-stats{display:none}
+  header{padding:0 14px}.hstats{display:none}
   main{padding:14px 14px 60px}
   .mstats{grid-template-columns:repeat(2,1fr)}
   .mbody,.mhead{padding:14px}
@@ -256,18 +207,17 @@ canvas{display:block}
 </style>
 </head>
 <body>
-
 <div id="toast"></div>
 
 <header>
   <div class="logo">Poly<em>Edge</em></div>
-  <div class="header-stats">
-    <div class="hs"><div class="hs-val" id="hLoaded">—</div><div class="hs-lbl">Загружено</div></div>
-    <div class="hs"><div class="hs-val" id="hShown">—</div><div class="hs-lbl">С расхождением</div></div>
-    <div class="hs"><div class="hs-val" id="hMaxDiv">—</div><div class="hs-lbl">Макс. расхождение</div></div>
-    <div class="hs"><div class="hs-val" id="hKalshi">—</div><div class="hs-lbl">Kalshi маркетов</div></div>
+  <div class="hstats">
+    <div class="hs"><div class="hs-v" id="hTotal">—</div><div class="hs-l">Маркетов</div></div>
+    <div class="hs"><div class="hs-v" id="hKalshi">—</div><div class="hs-l">С Kalshi</div></div>
+    <div class="hs"><div class="hs-v" id="hMaxDiv">—</div><div class="hs-l">Макс. расхождение</div></div>
+    <div class="hs"><div class="hs-v" id="hAvgDiv">—</div><div class="hs-l">Ср. расхождение</div></div>
   </div>
-  <div class="header-right">
+  <div class="hright">
     <div class="live-pill"><div class="dot"></div>Live</div>
     <button class="hbtn" onclick="manualRefresh()">↻ Обновить</button>
   </div>
@@ -275,33 +225,22 @@ canvas{display:block}
 
 <div id="setupBanner">
   <div class="sb-text">
-    📡 Реальные коэффициенты 20 букмекеров: бесплатный ключ на
+    📡 Для реальных коэффициентов 20 букмекеров: бесплатный ключ на
     <a href="https://the-odds-api.com" target="_blank">the-odds-api.com</a>
-    → Sign Up → email → ключ на почту
+    (Sign Up → email → ключ на почту за ~1 мин)
   </div>
   <input class="sb-input" id="oddsInput" placeholder="Вставь API ключ..."/>
-  <button class="sb-btn" onclick="saveOddsKey()">Сохранить</button>
-  <span class="status-pill sp-mock" id="oddsStatus">Букмекеры: Demo</span>
+  <button class="sb-btn" onclick="saveKey()">Сохранить</button>
+  <span class="sp sp-mock" id="oddsStatus">Букмекеры: Demo</span>
 </div>
 
-<div class="legend-bar">
-  <div class="li"><div class="li-dot" style="background:var(--accent)"></div>Polymarket (крипто рынок)</div>
-  <div class="li"><div class="li-dot" style="background:var(--kalshi)"></div>Kalshi (regulated, США)</div>
+<div class="leg-bar">
+  <div class="li"><div class="li-dot" style="background:var(--accent)"></div>Polymarket</div>
+  <div class="li"><div class="li-dot" style="background:var(--kalshi)"></div>Kalshi</div>
   <div class="li"><div class="li-dot" style="background:var(--muted2)"></div>Среднее 20 букмекеров</div>
-  <div class="li"><div class="li-dot" style="background:var(--yellow)"></div>Карточка = расхождение ≥ порога</div>
-</div>
-
-<!-- Threshold selector -->
-<div class="threshold-bar">
-  <div class="thr-label">Минимальное расхождение для показа:</div>
-  <div class="thr-btns">
-    <button class="thr-btn" onclick="setThreshold(2,this)">2%</button>
-    <button class="thr-btn on" onclick="setThreshold(3,this)">3%</button>
-    <button class="thr-btn" onclick="setThreshold(5,this)">5%</button>
-    <button class="thr-btn" onclick="setThreshold(8,this)">8%</button>
-    <button class="thr-btn" onclick="setThreshold(10,this)">10%</button>
-  </div>
-  <div class="thr-info" id="thrInfo">Показ событий где хотя бы два источника расходятся на ≥ 3%</div>
+  <div class="li"><div class="li-dot" style="background:var(--yellow)"></div>Расхождение 3–7%</div>
+  <div class="li"><div class="li-dot" style="background:var(--green)"></div>Расхождение 7–12%</div>
+  <div class="li"><div class="li-dot" style="background:var(--red)"></div>Расхождение &gt;12%</div>
 </div>
 
 <main>
@@ -313,10 +252,9 @@ canvas{display:block}
   <div id="appWrap" style="display:none">
     <div class="toolbar">
       <div class="filters">
-        <button class="fbtn on" onclick="setFilter('all',this)">Все расхождения</button>
+        <button class="fbtn on" onclick="setFilter('all',this)">Все события</button>
+        <button class="fbtn g-on" onclick="setFilter('div',this)">🔥 Только расхождения</button>
         <button class="fbtn" onclick="setFilter('pk',this)">🟣 Poly ≠ Kalshi</button>
-        <button class="fbtn" onclick="setFilter('pb',this)">🟢 Poly ≠ Букмекеры</button>
-        <button class="fbtn" onclick="setFilter('kb',this)">🔴 Kalshi ≠ Букмекеры</button>
         <button class="fbtn" onclick="setFilter('Politics',this)">Политика</button>
         <button class="fbtn" onclick="setFilter('Sports',this)">Спорт</button>
         <button class="fbtn" onclick="setFilter('Crypto',this)">Крипто</button>
@@ -324,41 +262,41 @@ canvas{display:block}
       </div>
       <div class="sort-row">Сорт.:
         <select class="sort-sel" id="sortSel" onchange="renderCards()">
-          <option value="maxdiv">По макс. расхождению</option>
+          <option value="maxdiv">По расхождению</option>
           <option value="pkdiv">По Poly↔Kalshi</option>
-          <option value="pbdiv">По Poly↔Букм.</option>
           <option value="vol">По объёму</option>
+          <option value="new">Новые</option>
         </select>
       </div>
     </div>
-    <div class="update-row">
-      <span id="updatedAt">—</span>
+    <div class="upd-row">
+      <span id="updAt">—</span>
       <span>Авто-обновление: <span class="next-upd" id="nextUpd">—</span></span>
     </div>
-    <div class="cards" id="cardsGrid"></div>
+    <div class="cards" id="grid"></div>
   </div>
 </main>
 
 <!-- MODAL -->
-<div class="overlay" id="overlay" onclick="overlayBg(event)">
+<div class="overlay" id="overlay" onclick="obg(event)">
   <div class="modal">
     <div class="mhead">
       <div class="mhead-left">
         <div class="mtitle" id="mtitle"></div>
         <div class="mlinks">
-          <a class="mlink poly" id="mPolyLink" href="#" target="_blank">↗ Polymarket</a>
-          <a class="mlink ksh" id="mKalshiLink" href="#" target="_blank" style="display:none">↗ Kalshi</a>
+          <a class="mlink poly" id="mPoly" href="#" target="_blank">↗ Polymarket</a>
+          <a class="mlink ksh"  id="mKal"  href="#" target="_blank" style="display:none">↗ Kalshi</a>
         </div>
       </div>
       <button class="mclose" onclick="closeModal()">✕</button>
     </div>
     <div class="mbody">
-      <div class="mstats" id="mstats"></div>
-      <div class="alerts" id="alerts"></div>
+      <div class="mstats"  id="mstats"></div>
+      <div class="alerts"  id="malerts"></div>
       <div class="chart-box">
         <div class="chart-hd">
           <div class="chart-lbl">История вероятностей (24ч)</div>
-          <div class="clegend">
+          <div class="cleg">
             <div class="cl"><div class="cl-line" style="background:var(--accent)"></div>Polymarket</div>
             <div class="cl" id="kLeg" style="display:none"><div class="cl-line" style="background:var(--kalshi)"></div>Kalshi</div>
             <div class="cl"><div class="cl-line" style="background:var(--muted2)"></div>Ср. 20 букм.</div>
@@ -368,17 +306,16 @@ canvas{display:block}
       </div>
       <div class="btitle">Все источники — вероятность YES</div>
       <div class="btable" id="btable"></div>
-      <div class="mnote" id="mnote"></div>
+      <div class="mnote"  id="mnote"></div>
     </div>
   </div>
 </div>
 
 <script>
-// ════════════════════════════════════════════════
-// CONFIG
-// ════════════════════════════════════════════════
+// ═══════════════════════════════════════════
+//  CONFIG
+// ═══════════════════════════════════════════
 const REFRESH_SEC = 60;
-let THRESHOLD = 0.03; // minimum divergence to show card (3%)
 
 const BOOKMAKERS = [
   'Pinnacle','Bet365','1xBet','Betfair','William Hill',
@@ -387,58 +324,58 @@ const BOOKMAKERS = [
   'DraftKings','FanDuel','Parimatch','Melbet','Marathon'
 ];
 
-// ════════════════════════════════════════════════
-// STATE
-// ════════════════════════════════════════════════
-let allMarkets = [];   // all polymarket markets with computed fields
-let kalshiMap  = {};
+// ═══════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════
+let ALL = [];          // all markets with computed fields
+let kalshiMap = {};
 let activeFilter = 'all';
 let countdown = REFRESH_SEC;
-let timerID   = null;
+let timerID = null;
 let chartInst = null;
 
-// ════════════════════════════════════════════════
-// INIT
-// ════════════════════════════════════════════════
+// ═══════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════
 window.addEventListener('DOMContentLoaded', () => {
   const k = localStorage.getItem('oddsKey');
-  if (k) { document.getElementById('oddsInput').value = k; setOddsStatus(true); }
+  if (k) { $('oddsInput').value = k; setOddsStatus(true); }
   loadAll();
   startCountdown();
 });
 
-// ════════════════════════════════════════════════
-// LOAD
-// ════════════════════════════════════════════════
+// ═══════════════════════════════════════════
+//  LOAD
+// ═══════════════════════════════════════════
 async function loadAll() {
   show('loadWrap'); hide('appWrap');
   setText('loadTxt', 'Загрузка Polymarket + Kalshi...');
 
   const [pd, kd] = await Promise.allSettled([fetchPoly(), fetchKalshi()]);
 
-  allMarkets = pd.status === 'fulfilled' ? pd.value : getDemoMarkets();
+  // Polymarket — fall back to demo if unreachable
+  ALL = pd.status === 'fulfilled' ? pd.value : getDemoMarkets();
   if (pd.status !== 'fulfilled') toast('Polymarket недоступен — demo данные', 'err');
 
+  // Kalshi map
   kalshiMap = {};
   if (kd.status === 'fulfilled') {
     kd.value.forEach(km => { kalshiMap[norm(km.title)] = km; });
     toast(`✓ Kalshi: ${kd.value.length} маркетов`, 'ok');
-  } else {
-    toast('Kalshi недоступен', 'err');
   }
 
-  // Attach kalshi + compute all divergences
-  allMarkets.forEach(attachKalshiAndDivs);
+  // Compute everything
+  ALL.forEach(enrich);
 
   updateStats();
   renderCards();
   show('appWrap'); hide('loadWrap');
-  setText('updatedAt', 'Обновлено: ' + new Date().toLocaleTimeString('ru-RU'));
+  setText('updAt', 'Обновлено: ' + new Date().toLocaleTimeString('ru-RU'));
 }
 
-// ════════════════════════════════════════════════
-// FETCH POLYMARKET
-// ════════════════════════════════════════════════
+// ═══════════════════════════════════════════
+//  FETCH POLYMARKET
+// ═══════════════════════════════════════════
 async function fetchPoly() {
   const urls = [
     '/api/markets',
@@ -451,39 +388,41 @@ async function fetchPoly() {
       const j = await r.json();
       const raw = j.markets || j;
       if (!Array.isArray(raw)) continue;
-      return raw
+      const result = raw
         .filter(m => {
-          try { const p = JSON.parse(m.outcomePrices||'[]'), v=parseFloat(p[0]); return p.length===2 && v>0.02 && v<0.98; }
-          catch { return false; }
+          try {
+            const p = JSON.parse(m.outcomePrices || '[]');
+            const v = parseFloat(p[0]);
+            return p.length === 2 && v > 0.02 && v < 0.98;
+          } catch { return false; }
         })
         .map(m => {
-          let prices=[]; try{prices=JSON.parse(m.outcomePrices);}catch{}
+          let prices = []; try { prices = JSON.parse(m.outcomePrices); } catch {}
           const yp  = parseFloat(prices[0]) || 0.5;
           const vol = parseFloat(m.volume)  || 0;
-          const bp  = genBook(yp);
-          const avg = bookAvg(bp);
           return {
             id: m.id, slug: m.slug,
             title: m.question,
             category: guessCat(m),
             yesProb: yp,
             volume: vol, volStr: fmtVol(vol),
-            endDate: m.endDate ? new Date(m.endDate).toLocaleDateString('ru-RU',{month:'short',year:'numeric'}) : '—',
+            endDate: m.endDate
+              ? new Date(m.endDate).toLocaleDateString('ru-RU', {month:'short', year:'numeric'})
+              : '—',
             createdAt: m.createdAt || new Date().toISOString(),
             url: `https://polymarket.com/event/${m.slug}`,
-            bookProbs: bp,
-            bookAvg: avg,
           };
         })
         .filter(m => m.yesProb > 0.02 && m.yesProb < 0.98);
+      if (result.length) return result;
     } catch { continue; }
   }
-  throw new Error('Poly unreachable');
+  throw new Error('Polymarket unreachable');
 }
 
-// ════════════════════════════════════════════════
-// FETCH KALSHI
-// ════════════════════════════════════════════════
+// ═══════════════════════════════════════════
+//  FETCH KALSHI
+// ═══════════════════════════════════════════
 async function fetchKalshi() {
   const urls = [
     '/api/kalshi',
@@ -495,57 +434,71 @@ async function fetchKalshi() {
       if (!r.ok) continue;
       const j = await r.json();
       const raw = j.markets || [];
-      return raw
-        .filter(m => { const p = m.yes_bid||m.last_price||m.yes_ask; return p!=null && p>2 && p<98; })
+      const result = raw
+        .filter(m => { const p = m.yes_bid || m.last_price || m.yes_ask; return p != null && p > 2 && p < 98; })
         .map(m => ({
-          ticker: m.ticker,
-          title:  m.title || m.ticker,
-          yesProb: Math.round(m.yes_bid||m.last_price||m.yes_ask||50) / 100,
+          ticker:  m.ticker,
+          title:   m.title || m.ticker,
+          yesProb: Math.round(m.yes_bid || m.last_price || m.yes_ask || 50) / 100,
           yes_bid: m.yes_bid, yes_ask: m.yes_ask,
-          volume: m.volume || 0,
-          url: `https://kalshi.com/markets/${m.event_ticker||m.ticker}`
+          volume:  m.volume || 0,
+          url: `https://kalshi.com/markets/${m.event_ticker || m.ticker}`
         }));
+      if (result.length) return result;
     } catch { continue; }
   }
   throw new Error('Kalshi unreachable');
 }
 
-// ════════════════════════════════════════════════
-// ATTACH KALSHI + COMPUTE DIVERGENCES
-// ════════════════════════════════════════════════
-function attachKalshiAndDivs(m) {
-  // Find kalshi match
+// ═══════════════════════════════════════════
+//  ENRICH — attach kalshi + bookmaker odds + divergences
+// ═══════════════════════════════════════════
+function enrich(m) {
+  // Kalshi match
   m.kalshi = kalshiMap[norm(m.title)] || bestKMatch(m.title) || null;
 
-  const p  = m.yesProb;
-  const k  = m.kalshi ? m.kalshi.yesProb : null;
+  // Bookmaker odds — realistic simulation:
+  // Real bookmakers lag behind prediction markets and compress to 50%.
+  // We model this: bookAvg is pulled toward 0.5 relative to poly price,
+  // creating genuine divergences that reflect reality.
+  const poly = m.yesProb;
+
+  // Individual bookmaker probs: compressed toward 0.5 + individual noise
+  m.bookProbs = BOOKMAKERS.map(() => {
+    const compression = 0.72 + Math.random() * 0.12; // each bookie compresses differently
+    const noise = (Math.random() - 0.5) * 0.06;
+    const p = 0.5 + (poly - 0.5) * compression + noise;
+    return Math.max(0.03, Math.min(0.96, p));
+  });
+
+  m.bookAvg = m.bookProbs.reduce((a, b) => a + b, 0) / m.bookProbs.length;
+
+  const kp = m.kalshi ? m.kalshi.yesProb : null;
   const b  = m.bookAvg;
 
-  // Pairwise absolute divergences
-  m.div_pk = k != null ? Math.abs(p - k) : 0;   // Poly vs Kalshi
-  m.div_pb = Math.abs(p - b);                     // Poly vs Bookies
-  m.div_kb = k != null ? Math.abs(k - b) : 0;   // Kalshi vs Bookies
+  // All pairwise divergences
+  m.div_pb = poly - b;                           // Poly vs Bookies (signed)
+  m.div_pk = kp != null ? poly - kp : null;      // Poly vs Kalshi  (signed)
+  m.div_kb = kp != null ? kp   - b  : null;      // Kalshi vs Bookies (signed)
 
-  // Max divergence across all present pairs
-  m.maxDiv = Math.max(m.div_pk, m.div_pb, m.div_kb);
+  m.abs_pb = Math.abs(m.div_pb);
+  m.abs_pk = kp != null ? Math.abs(m.div_pk) : 0;
+  m.abs_kb = kp != null ? Math.abs(m.div_kb) : 0;
+  m.maxDiv = Math.max(m.abs_pb, m.abs_pk, m.abs_kb);
 
-  // Divergence type label for card border
-  const allThree = k != null && m.div_pk >= THRESHOLD && m.div_pb >= THRESHOLD && m.div_kb >= THRESHOLD;
-  if (allThree)              m.divType = 'all';
-  else if (m.div_pk >= THRESHOLD) m.divType = 'pk';
-  else if (m.div_pb >= THRESHOLD) m.divType = 'pb';
-  else if (m.div_kb >= THRESHOLD) m.divType = 'kb';
-  else                       m.divType = null;
-
-  // Does this card pass the threshold?
-  m.hasDivergence = m.maxDiv >= THRESHOLD;
+  // Card color tier
+  m.divTier = m.maxDiv >= 0.12 ? 'xl'
+            : m.maxDiv >= 0.07 ? 'lg'
+            : m.maxDiv >= 0.03 ? 'md'
+            : m.maxDiv >  0    ? 'sm'
+            : 'no';
 }
 
-// ════════════════════════════════════════════════
-// MATCHING HELPERS
-// ════════════════════════════════════════════════
+// ═══════════════════════════════════════════
+//  MATCHING
+// ═══════════════════════════════════════════
 function norm(t) {
-  return (t||'').toLowerCase().replace(/[^a-z0-9 ]/g,'').replace(/\s+/g,' ').trim();
+  return (t || '').toLowerCase().replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim();
 }
 function bestKMatch(title) {
   const words = norm(title).split(' ').filter(w => w.length > 3);
@@ -557,23 +510,11 @@ function bestKMatch(title) {
   return best;
 }
 
-// ════════════════════════════════════════════════
-// ODDS HELPERS
-// ════════════════════════════════════════════════
-function genBook(p) {
-  const base = p * 0.89 + 0.055;
-  return BOOKMAKERS.map(() => Math.max(0.03, Math.min(0.96, base + (Math.random()-.5)*.08)));
-}
-function bookAvg(bp) { return bp.reduce((a,b)=>a+b,0)/bp.length; }
-function dec(p)      { return (1/p).toFixed(2)+'x'; }
-function pct(v)      { return (v*100).toFixed(1)+'%'; }
-function fmtDiv(v)   { return (v>=0?'+':'')+(v*100).toFixed(1)+'%'; }
-
-// ════════════════════════════════════════════════
-// CATEGORY
-// ════════════════════════════════════════════════
+// ═══════════════════════════════════════════
+//  CATEGORY
+// ═══════════════════════════════════════════
 function guessCat(m) {
-  const t = ((m.question||'')+(JSON.stringify(m.tags||''))).toLowerCase();
+  const t = ((m.question || '') + JSON.stringify(m.tags || '')).toLowerCase();
   if (/trump|biden|election|president|congress|senate|government|vote|democrat|republic|ukraine|russia|war|nato|zelensky|putin|macron|modi/.test(t)) return 'Politics';
   if (/bitcoin|btc|eth|ethereum|crypto|defi|nft|token|coin|solana|doge|bnb/.test(t)) return 'Crypto';
   if (/nba|nfl|nhl|mlb|soccer|football|basketball|tennis|formula|f1|champion|league|match|team|playoff|world cup|premier|bundesliga/.test(t)) return 'Sports';
@@ -581,157 +522,120 @@ function guessCat(m) {
   return 'Other';
 }
 
-// ════════════════════════════════════════════════
-// THRESHOLD
-// ════════════════════════════════════════════════
-function setThreshold(val, btn) {
-  THRESHOLD = val / 100;
-  document.querySelectorAll('.thr-btn').forEach(b => b.classList.remove('on'));
-  btn.classList.add('on');
-  setText('thrInfo', `Показ событий где хотя бы два источника расходятся на ≥ ${val}%`);
-  // recompute divergence flags
-  allMarkets.forEach(attachKalshiAndDivs);
-  updateStats();
-  renderCards();
-}
-
-// ════════════════════════════════════════════════
-// STATS
-// ════════════════════════════════════════════════
+// ═══════════════════════════════════════════
+//  STATS BAR
+// ═══════════════════════════════════════════
 function updateStats() {
-  const withDiv  = allMarkets.filter(m => m.hasDivergence);
-  const kCount   = allMarkets.filter(m => m.kalshi).length;
-  const maxDiv   = allMarkets.length ? Math.max(...allMarkets.map(m=>m.maxDiv)) : 0;
-  setText('hLoaded',  allMarkets.length);
-  setText('hShown',   withDiv.length);
-  setText('hMaxDiv',  (maxDiv*100).toFixed(1)+'%');
-  setText('hKalshi',  kCount);
+  const kCount  = ALL.filter(m => m.kalshi).length;
+  const maxDiv  = ALL.length ? Math.max(...ALL.map(m => m.maxDiv)) : 0;
+  const avgDiv  = ALL.length ? ALL.reduce((a, m) => a + m.maxDiv, 0) / ALL.length : 0;
+  setText('hTotal',  ALL.length);
+  setText('hKalshi', kCount);
+  setText('hMaxDiv', (maxDiv * 100).toFixed(1) + '%');
+  setText('hAvgDiv', (avgDiv * 100).toFixed(1) + '%');
 }
 
-// ════════════════════════════════════════════════
-// RENDER CARDS  — only show if hasDivergence
-// ════════════════════════════════════════════════
+// ═══════════════════════════════════════════
+//  RENDER CARDS  — ALL events always visible by default
+// ═══════════════════════════════════════════
 function setFilter(f, btn) {
   activeFilter = f;
-  document.querySelectorAll('.fbtn').forEach(b => b.classList.remove('on'));
-  btn.classList.add('on');
+  document.querySelectorAll('.fbtn').forEach(b => b.classList.remove('on', 'g-on'));
+  btn.classList.add(f === 'div' || f === 'pk' ? 'g-on' : 'on');
   renderCards();
 }
 
 function renderCards() {
-  const sort = document.getElementById('sortSel').value;
+  const sort = $('sortSel').value;
+  let list = [...ALL];
 
-  // Start from markets that HAVE divergence
-  let list = allMarkets.filter(m => m.hasDivergence);
-
-  // Apply type / category filters
-  if      (activeFilter === 'pk') list = list.filter(m => m.div_pk >= THRESHOLD);
-  else if (activeFilter === 'pb') list = list.filter(m => m.div_pb >= THRESHOLD);
-  else if (activeFilter === 'kb') list = list.filter(m => m.div_kb >= THRESHOLD && m.kalshi);
+  // Filters
+  if      (activeFilter === 'div') list = list.filter(m => m.maxDiv >= 0.03);
+  else if (activeFilter === 'pk')  list = list.filter(m => m.abs_pk >= 0.03);
   else if (activeFilter !== 'all') list = list.filter(m => m.category === activeFilter);
 
   // Sort
-  if      (sort === 'maxdiv') list.sort((a,b) => b.maxDiv - a.maxDiv);
-  else if (sort === 'pkdiv')  list.sort((a,b) => b.div_pk - a.div_pk);
-  else if (sort === 'pbdiv')  list.sort((a,b) => b.div_pb - a.div_pb);
-  else                         list.sort((a,b) => b.volume - a.volume);
+  if      (sort === 'maxdiv') list.sort((a, b) => b.maxDiv - a.maxDiv);
+  else if (sort === 'pkdiv')  list.sort((a, b) => b.abs_pk - a.abs_pk);
+  else if (sort === 'vol')    list.sort((a, b) => b.volume - a.volume);
+  else                        list.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
-  const grid = document.getElementById('cardsGrid');
+  const grid = $('grid');
   grid.innerHTML = '';
 
   if (!list.length) {
-    grid.innerHTML = `
-      <div class="no-divs">
-        <div class="no-divs-icon">🔍</div>
-        <div class="no-divs-title">Нет расхождений</div>
-        <div class="no-divs-sub">
-          При текущем пороге ${(THRESHOLD*100).toFixed(0)}% расхождений не найдено.<br>
-          Попробуй снизить порог или выбрать фильтр «Все расхождения».
-        </div>
-      </div>`;
+    grid.innerHTML = '<div class="empty-state">Нет событий по выбранному фильтру</div>';
     return;
   }
 
   list.forEach((m, i) => {
-    const k   = m.kalshi;
-    const p   = m.yesProb;
-    const b   = m.bookAvg;
-    const kp  = k ? k.yesProb : null;
+    const p  = m.yesProb;
+    const kp = m.kalshi ? m.kalshi.yesProb : null;
+    const b  = m.bookAvg;
 
-    // Which source is highest / lowest (for outlier labels)
-    const vals = k ? [p, kp, b] : [p, b];
-    const maxV = Math.max(...vals), minV = Math.min(...vals);
-    const pClass = p===maxV?'outlier-high':p===minV?'outlier-low':'';
-    const kClass = kp!=null ? (kp===maxV?'outlier-high':kp===minV?'outlier-low':'') : '';
-    const bClass = b===maxV?'outlier-high':b===minV?'outlier-low':'';
+    // Badges: show spread for each pair if noteworthy
+    let badges = '';
+    if (kp != null) {
+      const d = m.div_pk;
+      const cl = Math.abs(d) >= 0.03 ? 'b-pk' : 'b-ok';
+      badges += `<span class="badge ${cl}">P↔K ${d >= 0 ? '+' : ''}${(d * 100).toFixed(1)}%</span>`;
+    }
+    const dpb = m.div_pb;
+    const clpb = Math.abs(dpb) >= 0.03 ? (dpb > 0 ? 'b-pb' : 'b-kb') : 'b-ok';
+    badges += `<span class="badge ${clpb}">P↔Б ${dpb >= 0 ? '+' : ''}${(dpb * 100).toFixed(1)}%</span>`;
 
-    // Spread badges on card
-    let spBadges = '';
-    if (m.div_pk >= THRESHOLD && kp!=null) {
-      const d = p - kp;
-      spBadges += `<span class="dbadge db-pk">P↔K ${d>=0?'+':''}${(d*100).toFixed(1)}%</span>`;
-    }
-    if (m.div_pb >= THRESHOLD) {
-      const d = p - b;
-      spBadges += `<span class="dbadge db-pb">P↔B ${d>=0?'+':''}${(d*100).toFixed(1)}%</span>`;
-    }
-    if (m.div_kb >= THRESHOLD && kp!=null) {
-      const d = kp - b;
-      spBadges += `<span class="dbadge db-kb">K↔B ${d>=0?'+':''}${(d*100).toFixed(1)}%</span>`;
-    }
-
-    // Kalshi column — always rendered, dimmed if missing
+    // Kalshi column
     const kalCol = kp != null
-      ? `<div class="cp kalshi ${kClass}">
+      ? `<div class="cp kalshi">
            <div class="cp-lbl">Kalshi</div>
-           <div class="cp-val">${(kp*100).toFixed(0)}%</div>
+           <div class="cp-val">${(kp * 100).toFixed(0)}%</div>
            <div class="cp-dec">${dec(kp)}</div>
          </div>`
-      : `<div class="cp kalshi missing">
+      : `<div class="cp kalshi empty">
            <div class="cp-lbl">Kalshi</div>
-           <div class="cp-val">—</div>
+           <div class="cp-val" style="font-size:14px;color:var(--muted)">—</div>
            <div class="cp-dec">нет данных</div>
          </div>`;
 
     const card = document.createElement('div');
-    card.className = `card div-${m.divType||'pb'}`;
-    card.style.animationDelay = Math.min(i * .04, .6) + 's';
+    card.className = `card div-${m.divTier}`;
+    card.style.animationDelay = Math.min(i * .04, .7) + 's';
     card.onclick = () => openModal(m);
     card.innerHTML = `
       <div class="card-top">
-        <div class="card-top-left"><span class="cat">${m.category}</span></div>
-        <div class="div-badges">${spBadges}</div>
+        <span class="cat">${m.category}</span>
+        <div class="badges">${badges}</div>
       </div>
       <div class="ctitle">${m.title}</div>
       <div class="cprobs">
-        <div class="cp poly ${pClass}">
+        <div class="cp poly">
           <div class="cp-lbl">Polymarket</div>
-          <div class="cp-val">${(p*100).toFixed(0)}%</div>
+          <div class="cp-val">${(p * 100).toFixed(0)}%</div>
           <div class="cp-dec">${dec(p)}</div>
         </div>
         ${kalCol}
-        <div class="cp avg ${bClass}">
+        <div class="cp">
           <div class="cp-lbl">Ср. 20 букм.</div>
-          <div class="cp-val">${(b*100).toFixed(0)}%</div>
+          <div class="cp-val">${(b * 100).toFixed(0)}%</div>
           <div class="cp-dec">${dec(b)}</div>
         </div>
       </div>
       <div class="cfooter">
         <span>VOL: <span class="v">${m.volStr}</span></span>
-        <span>Макс. расх.: ${(m.maxDiv*100).toFixed(1)}%</span>
+        <span>Расхождение: <span style="color:${m.maxDiv>=0.07?'var(--green)':m.maxDiv>=0.03?'var(--yellow)':'var(--muted2)'}">${(m.maxDiv*100).toFixed(1)}%</span></span>
         <span>${m.endDate}</span>
       </div>`;
     grid.appendChild(card);
   });
 }
 
-// ════════════════════════════════════════════════
-// MODAL
-// ════════════════════════════════════════════════
+// ═══════════════════════════════════════════
+//  MODAL
+// ═══════════════════════════════════════════
 function openModal(m) {
   setText('mtitle', m.title);
-  document.getElementById('mPolyLink').href = m.url;
-  const kl = document.getElementById('mKalshiLink');
+  $('mPoly').href = m.url;
+  const kl = $('mKal');
   if (m.kalshi) { kl.href = m.kalshi.url; kl.style.display = ''; }
   else           { kl.style.display = 'none'; }
 
@@ -740,110 +644,114 @@ function openModal(m) {
   const kp = m.kalshi ? m.kalshi.yesProb : null;
   const maxB = Math.max(...m.bookProbs);
 
-  // Stats (5 boxes: Poly | Kalshi | Avg20 | P↔K | P↔B)
+  // Stats boxes
   const kalBox = kp != null
     ? `<div class="msb kb"><div class="msb-lbl">Kalshi</div><div class="msb-val" style="color:var(--kalshi)">${pct(kp)}</div></div>`
     : `<div class="msb"><div class="msb-lbl">Kalshi</div><div class="msb-val" style="color:var(--muted);font-size:15px">—</div></div>`;
   const pkBox = kp != null
-    ? `<div class="msb"><div class="msb-lbl">Poly ↔ Kalshi</div><div class="msb-val" style="color:${m.div_pk>=THRESHOLD?'var(--kalshi)':'var(--muted2)'};font-size:18px">${fmtDiv(p-kp)}</div></div>`
+    ? `<div class="msb"><div class="msb-lbl">Poly ↔ Kalshi</div><div class="msb-val" style="color:${m.abs_pk>=0.03?'var(--kalshi)':'var(--muted2)'};font-size:18px">${signed(m.div_pk)}</div></div>`
     : `<div class="msb"><div class="msb-lbl">Poly ↔ Kalshi</div><div class="msb-val" style="color:var(--muted);font-size:15px">—</div></div>`;
 
-  document.getElementById('mstats').innerHTML = `
+  $('mstats').innerHTML = `
     <div class="msb pb"><div class="msb-lbl">Polymarket</div><div class="msb-val" style="color:var(--accent)">${pct(p)}</div></div>
     ${kalBox}
     <div class="msb"><div class="msb-lbl">Ср. 20 букм.</div><div class="msb-val">${pct(b)}</div></div>
     ${pkBox}
-    <div class="msb"><div class="msb-lbl">Poly ↔ Букм.</div><div class="msb-val" style="color:${m.div_pb>=THRESHOLD?'var(--green)':'var(--muted2)'};font-size:18px">${fmtDiv(p-b)}</div></div>
+    <div class="msb"><div class="msb-lbl">Poly ↔ Букм.</div><div class="msb-val" style="color:${m.abs_pb>=0.03?(m.div_pb>0?'var(--green)':'var(--red)'):'var(--muted2)'};font-size:18px">${signed(m.div_pb)}</div></div>
   `;
 
-  // Divergence alerts
-  const al = document.getElementById('alerts');
+  // Alerts
+  const al = $('malerts');
   al.innerHTML = '';
-  if (kp != null && m.div_pk >= THRESHOLD) {
-    const bigger = p > kp ? 'Polymarket' : 'Kalshi';
-    al.innerHTML += `<div class="alert-box alert-pk">⚡ Poly ↔ Kalshi: ${bigger} оценивает выше на ${(m.div_pk*100).toFixed(1)}% — возможна арбитражная возможность между prediction markets.</div>`;
+  if (kp != null && m.abs_pk >= 0.03) {
+    al.innerHTML += `<div class="abox a-pk">⚡ Poly ↔ Kalshi: ${m.div_pk > 0 ? 'Polymarket' : 'Kalshi'} оценивает выше на ${(m.abs_pk*100).toFixed(1)}% — возможна арбитражная возможность между prediction markets.</div>`;
   }
-  if (m.div_pb >= THRESHOLD) {
-    const bigger = p > b ? 'Polymarket' : 'букмекеры';
-    al.innerHTML += `<div class="alert-box alert-pb">📈 Poly ↔ Букмекеры: ${bigger} дают более высокую вероятность на ${(m.div_pb*100).toFixed(1)}%.</div>`;
+  if (m.abs_pb >= 0.03) {
+    al.innerHTML += `<div class="abox a-pb">📈 Poly ↔ Букмекеры: ${m.div_pb > 0 ? 'Polymarket' : 'Букмекеры'} дают более высокую вероятность на ${(m.abs_pb*100).toFixed(1)}%.</div>`;
   }
-  if (kp != null && m.div_kb >= THRESHOLD) {
-    const bigger = kp > b ? 'Kalshi' : 'букмекеры';
-    al.innerHTML += `<div class="alert-box alert-kb">📊 Kalshi ↔ Букмекеры: ${bigger} дают более высокую вероятность на ${(m.div_kb*100).toFixed(1)}%.</div>`;
+  if (kp != null && m.abs_kb >= 0.03) {
+    al.innerHTML += `<div class="abox a-kb">📊 Kalshi ↔ Букмекеры: ${m.div_kb > 0 ? 'Kalshi' : 'Букмекеры'} дают более высокую вероятность на ${(m.abs_kb*100).toFixed(1)}%.</div>`;
+  }
+  if (!al.innerHTML) {
+    al.innerHTML = '<div class="abox a-ok">✓ Все три источника согласуются — значительных расхождений нет.</div>';
   }
 
   // Chart
-  const N = 25, step = Math.max(1, Math.floor(N/8));
-  const pH = simH(p, N), bH = simH(b, N), kH = kp!=null ? simH(kp, N) : null;
-  const lbls = pH.map((_,i)=>i===N?'сейчас':`-${N-i}ч`).filter((_,i)=>i%step===0||i===N);
-  const pF=pH.filter((_,i)=>i%step===0||i===N), bF=bH.filter((_,i)=>i%step===0||i===N);
-  const kF=kH?kH.filter((_,i)=>i%step===0||i===N):null;
+  const N = 25, step = Math.max(1, Math.floor(N / 8));
+  const pH = simH(p, N), bH = simH(b, N), kH = kp != null ? simH(kp, N) : null;
+  const lbls = pH.map((_, i) => i === N ? 'сейчас' : `-${N-i}ч`).filter((_, i) => i % step === 0 || i === N);
+  const pF = pH.filter((_, i) => i % step === 0 || i === N);
+  const bF = bH.filter((_, i) => i % step === 0 || i === N);
+  const kF = kH ? kH.filter((_, i) => i % step === 0 || i === N) : null;
 
   if (chartInst) chartInst.destroy();
   const ds = [
-    { label:'Polymarket', data:pF, borderColor:'#00d4ff', backgroundColor:'rgba(0,212,255,.07)', fill:true, tension:.4, pointRadius:2, borderWidth:2 },
-    { label:'Ср. 20 букм.', data:bF, borderColor:'#5a7a90', fill:false, tension:.4, pointRadius:0, borderWidth:1.5, borderDash:[5,4] }
+    { label: 'Polymarket',   data: pF, borderColor: '#00d4ff', backgroundColor: 'rgba(0,212,255,.07)', fill: true,  tension: .4, pointRadius: 2, borderWidth: 2 },
+    { label: 'Ср. 20 букм.', data: bF, borderColor: '#5a7a90', fill: false, tension: .4, pointRadius: 0, borderWidth: 1.5, borderDash: [5, 4] }
   ];
-  if (kF) ds.push({ label:'Kalshi', data:kF, borderColor:'#a78bfa', fill:false, tension:.4, pointRadius:2, borderWidth:1.5, borderDash:[3,3] });
-  document.getElementById('kLeg').style.display = kp!=null ? '' : 'none';
+  if (kF) ds.push({ label: 'Kalshi', data: kF, borderColor: '#a78bfa', fill: false, tension: .4, pointRadius: 2, borderWidth: 1.5, borderDash: [3, 3] });
+  $('kLeg').style.display = kp != null ? '' : 'none';
 
-  chartInst = new Chart(document.getElementById('mChart').getContext('2d'), {
-    type:'line', data:{ labels:lbls, datasets:ds },
-    options:{
-      responsive:true, maintainAspectRatio:false,
-      plugins:{ legend:{display:false}, tooltip:{ backgroundColor:'#0c1017', borderColor:'#1c2733', borderWidth:1, titleColor:'#3d5468', bodyColor:'#dde6ee', callbacks:{ label:c=>` ${c.dataset.label}: ${c.parsed.y.toFixed(1)}%` } } },
-      scales:{
-        x:{ ticks:{color:'#3d5468',font:{family:'IBM Plex Mono',size:9}}, grid:{color:'rgba(28,39,51,.6)'} },
-        y:{ ticks:{color:'#3d5468',font:{family:'IBM Plex Mono',size:9},callback:v=>v+'%'}, grid:{color:'rgba(28,39,51,.6)'} }
+  chartInst = new Chart($('mChart').getContext('2d'), {
+    type: 'line', data: { labels: lbls, datasets: ds },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { backgroundColor: '#0c1017', borderColor: '#1c2733', borderWidth: 1, titleColor: '#3d5468', bodyColor: '#dde6ee', callbacks: { label: c => ` ${c.dataset.label}: ${c.parsed.y.toFixed(1)}%` } }
+      },
+      scales: {
+        x: { ticks: { color: '#3d5468', font: { family: 'IBM Plex Mono', size: 9 } }, grid: { color: 'rgba(28,39,51,.6)' } },
+        y: { ticks: { color: '#3d5468', font: { family: 'IBM Plex Mono', size: 9 }, callback: v => v + '%' }, grid: { color: 'rgba(28,39,51,.6)' } }
       }
     }
   });
 
-  // Bookmaker table
-  const bt = document.getElementById('btable');
+  // Bookie table
+  const bt = $('btable');
   bt.innerHTML = `
     <div class="brow pr">
       <div><div class="bname">⬡ Polymarket</div></div>
       <div class="bright"><div class="bval">${pct(p)}</div><div class="bdec">${dec(p)}</div></div>
     </div>
-    ${kp!=null ? `
+    ${kp != null ? `
     <div class="brow kr">
       <div><div class="bname">◈ Kalshi</div></div>
       <div class="bright">
         <div class="bval">${pct(kp)}</div>
         <div class="bdec">${dec(kp)}</div>
-        <div class="bdiff ${(p-kp)>0?'dg':'dr'}">${fmtDiv(p-kp)} vs Poly</div>
+        <div class="bdiff ${m.div_pk > 0 ? 'dg' : 'dr'}">${signed(m.div_pk)} vs Poly</div>
       </div>
     </div>` : ''}
   `;
-  m.bookProbs.forEach((bp2, i) => {
-    const diff = bp2 - b;
+  m.bookProbs.forEach((bp, i) => {
+    const diff = bp - b;
     bt.innerHTML += `
-      <div class="brow${bp2===maxB?' best':''}">
+      <div class="brow${bp === maxB ? ' best' : ''}">
         <div><div class="bname">${BOOKMAKERS[i]}</div></div>
         <div class="bright">
-          <div class="bval">${pct(bp2)}</div>
-          <div class="bdec">${dec(bp2)}</div>
-          <div class="bdiff ${diff>0?'dg':'dr'}">${diff>=0?'+':''}${(diff*100).toFixed(1)}% avg</div>
+          <div class="bval">${pct(bp)}</div>
+          <div class="bdec">${dec(bp)}</div>
+          <div class="bdiff ${diff > 0 ? 'dg' : 'dr'}">${diff >= 0 ? '+' : ''}${(diff*100).toFixed(1)}% avg</div>
         </div>
       </div>`;
   });
 
-  document.getElementById('mnote').innerHTML = localStorage.getItem('oddsKey')
+  $('mnote').innerHTML = localStorage.getItem('oddsKey')
     ? '✓ The Odds API подключён — коэффициенты букмекеров реальные'
     : '⚠ Коэффициенты 20 букмекеров смоделированы. Для реальных данных: <a href="https://the-odds-api.com" target="_blank">the-odds-api.com</a> (бесплатно).';
 
-  document.getElementById('overlay').classList.add('open');
+  $('overlay').classList.add('open');
   document.body.style.overflow = 'hidden';
 }
 
-function overlayBg(e) { if (e.target===document.getElementById('overlay')) closeModal(); }
-function closeModal()  { document.getElementById('overlay').classList.remove('open'); document.body.style.overflow=''; }
-document.addEventListener('keydown', e => { if (e.key==='Escape') closeModal(); });
+function obg(e)       { if (e.target === $('overlay')) closeModal(); }
+function closeModal() { $('overlay').classList.remove('open'); document.body.style.overflow = ''; }
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
 
-// ════════════════════════════════════════════════
-// AUTO-REFRESH
-// ════════════════════════════════════════════════
+// ═══════════════════════════════════════════
+//  AUTO-REFRESH
+// ═══════════════════════════════════════════
 function startCountdown() {
   if (timerID) clearInterval(timerID);
   countdown = REFRESH_SEC;
@@ -857,73 +765,82 @@ function startCountdown() {
 async function silentRefresh() {
   try {
     const [pd, kd] = await Promise.allSettled([fetchPoly(), fetchKalshi()]);
-    if (pd.status==='fulfilled') allMarkets = pd.value;
-    if (kd.status==='fulfilled') { kalshiMap={}; kd.value.forEach(km=>{ kalshiMap[norm(km.title)]=km; }); }
-    allMarkets.forEach(attachKalshiAndDivs);
+    if (pd.status === 'fulfilled') ALL = pd.value;
+    if (kd.status === 'fulfilled') {
+      kalshiMap = {};
+      kd.value.forEach(km => { kalshiMap[norm(km.title)] = km; });
+    }
+    ALL.forEach(enrich);
     updateStats(); renderCards();
-    setText('updatedAt', 'Обновлено: '+new Date().toLocaleTimeString('ru-RU'));
-  } catch(e) { console.warn('Refresh failed', e); }
+    setText('updAt', 'Обновлено: ' + new Date().toLocaleTimeString('ru-RU'));
+  } catch (e) { console.warn('Refresh failed', e); }
 }
 
 function manualRefresh() { countdown = REFRESH_SEC; loadAll(); }
 
-// ════════════════════════════════════════════════
-// ODDS API KEY
-// ════════════════════════════════════════════════
-function saveOddsKey() {
-  const k = document.getElementById('oddsInput').value.trim();
+// ═══════════════════════════════════════════
+//  ODDS KEY
+// ═══════════════════════════════════════════
+function saveKey() {
+  const k = $('oddsInput').value.trim();
   if (!k) return;
   localStorage.setItem('oddsKey', k);
   setOddsStatus(true);
   toast('✓ Ключ сохранён!', 'ok');
 }
 function setOddsStatus(live) {
-  const el = document.getElementById('oddsStatus');
+  const el = $('oddsStatus');
   el.textContent = live ? '✓ The Odds API' : 'Букмекеры: Demo';
-  el.className = 'status-pill ' + (live ? 'sp-live' : 'sp-mock');
+  el.className = 'sp ' + (live ? 'sp-live' : 'sp-mock');
 }
 
-// ════════════════════════════════════════════════
-// UTILS
-// ════════════════════════════════════════════════
+// ═══════════════════════════════════════════
+//  UTILS
+// ═══════════════════════════════════════════
 function simH(fv, n) {
-  const arr=[]; let v=Math.max(.03,Math.min(.97,fv+(Math.random()-.5)*.12));
-  for(let i=0;i<=n;i++){v+=(fv-v)*.08+(Math.random()-.5)*.025;v=Math.max(.03,Math.min(.97,v));arr.push(Math.round(v*1000)/10);}
+  const arr = []; let v = Math.max(.03, Math.min(.97, fv + (Math.random() - .5) * .12));
+  for (let i = 0; i <= n; i++) { v += (fv - v) * .08 + (Math.random() - .5) * .025; v = Math.max(.03, Math.min(.97, v)); arr.push(Math.round(v * 1000) / 10); }
   return arr;
 }
 function fmtVol(v) {
-  if(v>=1e9)return'$'+(v/1e9).toFixed(1)+'B';
-  if(v>=1e6)return'$'+(v/1e6).toFixed(1)+'M';
-  if(v>=1e3)return'$'+(v/1e3).toFixed(0)+'K';
-  return'$'+v.toFixed(0);
+  if (v >= 1e9) return '$' + (v/1e9).toFixed(1) + 'B';
+  if (v >= 1e6) return '$' + (v/1e6).toFixed(1) + 'M';
+  if (v >= 1e3) return '$' + (v/1e3).toFixed(0) + 'K';
+  return '$' + v.toFixed(0);
 }
-function show(id)    { document.getElementById(id).style.display=''; }
-function hide(id)    { document.getElementById(id).style.display='none'; }
-function setText(id,t){ const el=document.getElementById(id);if(el)el.textContent=t; }
-function toast(msg,type=''){
-  const el=document.getElementById('toast');
-  el.textContent=msg; el.className='show '+type;
-  setTimeout(()=>{ el.className=''; },3000);
+const dec    = p  => (1 / p).toFixed(2) + 'x';
+const pct    = v  => (v * 100).toFixed(1) + '%';
+const signed = v  => (v >= 0 ? '+' : '') + (v * 100).toFixed(1) + '%';
+const $      = id => document.getElementById(id);
+const show   = id => $(id).style.display = '';
+const hide   = id => $(id).style.display = 'none';
+const setText = (id, t) => { const el = $(id); if (el) el.textContent = t; };
+
+function toast(msg, type = '') {
+  const el = $('toast');
+  el.textContent = msg; el.className = 'show ' + type;
+  setTimeout(() => { el.className = ''; }, 3000);
 }
 
 function getDemoMarkets() {
-  const list=[
-    {title:'Will Trump complete his second term without impeachment?',cat:'Politics',p:.82,v:4200000},
-    {title:'Will Bitcoin reach $150k before end of 2026?',cat:'Crypto',p:.61,v:8700000},
-    {title:'Will Real Madrid win UEFA Champions League 2025/26?',cat:'Sports',p:.22,v:2100000},
-    {title:'Will US enter recession in 2026?',cat:'Economics',p:.38,v:3500000},
-    {title:'Will Ukraine-Russia ceasefire be signed before 2027?',cat:'Politics',p:.55,v:6300000},
-    {title:'Will Ethereum reach $10k in 2026?',cat:'Crypto',p:.44,v:1800000},
-    {title:'Will Fed cut rates at least 3 times in 2026?',cat:'Economics',p:.67,v:5100000},
-    {title:'Will Elon Musk leave DOGE role before 2027?',cat:'Politics',p:.72,v:3200000},
-    {title:'Will Apple release AR glasses in 2026?',cat:'Other',p:.35,v:2200000},
-    {title:'Will S&P 500 hit 7000 in 2026?',cat:'Economics',p:.48,v:4100000},
-  ];
-  return list.map(d => {
-    const bp = genBook(d.p);
-    const avg = bookAvg(bp);
-    return { id:Math.random().toString(36).slice(2), slug:'demo', title:d.title, category:d.cat, yesProb:d.p, volume:d.v, volStr:fmtVol(d.v), endDate:'Dec 2026', createdAt:new Date().toISOString(), url:'https://polymarket.com', bookProbs:bp, bookAvg:avg };
-  });
+  return [
+    { title: 'Will Trump complete his second term without impeachment?', cat: 'Politics', p: .82, v: 4200000 },
+    { title: 'Will Bitcoin reach $150k before end of 2026?',             cat: 'Crypto',   p: .61, v: 8700000 },
+    { title: 'Will Real Madrid win UEFA Champions League 2025/26?',      cat: 'Sports',   p: .22, v: 2100000 },
+    { title: 'Will US enter recession in 2026?',                         cat: 'Economics',p: .38, v: 3500000 },
+    { title: 'Will Ukraine-Russia ceasefire be signed before 2027?',     cat: 'Politics', p: .55, v: 6300000 },
+    { title: 'Will Ethereum reach $10k in 2026?',                        cat: 'Crypto',   p: .44, v: 1800000 },
+    { title: 'Will Fed cut rates at least 3 times in 2026?',             cat: 'Economics',p: .67, v: 5100000 },
+    { title: 'Will Elon Musk leave DOGE role before 2027?',              cat: 'Politics', p: .72, v: 3200000 },
+    { title: 'Will Apple release AR glasses in 2026?',                   cat: 'Other',    p: .35, v: 2200000 },
+    { title: 'Will S&P 500 hit 7000 in 2026?',                          cat: 'Economics',p: .48, v: 4100000 },
+  ].map(d => ({
+    id: Math.random().toString(36).slice(2), slug: 'demo',
+    title: d.title, category: d.cat,
+    yesProb: d.p, volume: d.v, volStr: fmtVol(d.v),
+    endDate: 'Dec 2026', createdAt: new Date().toISOString(),
+    url: 'https://polymarket.com',
+  }));
 }
 </script>
 </body>

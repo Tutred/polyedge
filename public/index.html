@@ -3,164 +3,232 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>PolyEdge — Odds Tracker</title>
+<title>PolyEdge — Live Odds Tracker</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-adapter-date-fns/3.0.0/chartjs-adapter-date-fns.bundle.min.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;700&family=Barlow:wght@400;500;600;700;800&display=swap');
-:root{--bg:#07090c;--s1:#0c1017;--s2:#111820;--border:#1c2733;--bord2:#243040;--accent:#00d4ff;--kalshi:#a78bfa;--adim:rgba(0,212,255,.07);--kdim:rgba(167,139,250,.07);--green:#00e676;--gdim:rgba(0,230,118,.1);--red:#ff4560;--rdim:rgba(255,69,96,.1);--yellow:#ffd740;--ydim:rgba(255,215,64,.1);--text:#dde6ee;--muted:#3d5468;--muted2:#5a7a90;--mono:'IBM Plex Mono',monospace;--sans:'Barlow',sans-serif}
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:100vh}
-body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(0,212,255,.02) 1px,transparent 1px),linear-gradient(90deg,rgba(0,212,255,.02) 1px,transparent 1px);background-size:50px 50px;pointer-events:none;z-index:0}
 
-#toast{position:fixed;bottom:24px;right:24px;z-index:9999;font-family:var(--mono);font-size:12px;padding:10px 18px;border-radius:3px;background:var(--s2);border:1px solid var(--bord2);color:var(--text);transform:translateY(60px);opacity:0;transition:all .3s;pointer-events:none}
-#toast.show{transform:translateY(0);opacity:1}
-#toast.ok{border-color:var(--green);color:var(--green)}
-#toast.err{border-color:var(--red);color:var(--red)}
+:root {
+  --bg:     #07090c;
+  --s1:     #0c1017;
+  --s2:     #111820;
+  --border: #1c2733;
+  --bord2:  #243040;
+  --accent: #00d4ff;   /* Polymarket = cyan */
+  --kalshi: #a78bfa;   /* Kalshi = purple */
+  --green:  #00e676;
+  --red:    #ff4560;
+  --yellow: #ffd740;
+  --text:   #dde6ee;
+  --muted:  #3d5468;
+  --muted2: #5a7a90;
+  --gdim:   rgba(0,230,118,.1);
+  --rdim:   rgba(255,69,96,.1);
+  --ydim:   rgba(255,215,64,.1);
+  --kdim:   rgba(167,139,250,.08);
+  --adim:   rgba(0,212,255,.07);
+  --mono:   'IBM Plex Mono', monospace;
+  --sans:   'Barlow', sans-serif;
+}
 
-header{position:sticky;top:0;z-index:50;background:rgba(7,9,12,.97);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 28px;height:60px;gap:16px}
-.logo{font-family:var(--mono);font-size:19px;font-weight:700;letter-spacing:-.5px;white-space:nowrap}
-.logo em{color:var(--accent);font-style:normal}
-.hstats{display:flex;gap:24px}
-.hs{text-align:center}
-.hs-v{font-family:var(--mono);font-size:15px;font-weight:700}
-.hs-l{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;margin-top:1px}
-.hright{display:flex;align-items:center;gap:10px}
-.live-pill{display:flex;align-items:center;gap:6px;background:var(--gdim);border:1px solid rgba(0,230,118,.2);padding:5px 12px;border-radius:20px;font-family:var(--mono);font-size:9px;color:var(--green);text-transform:uppercase;letter-spacing:2px;white-space:nowrap}
-.dot{width:7px;height:7px;border-radius:50%;background:var(--green);animation:blink 1.4s infinite}
-@keyframes blink{0%,100%{opacity:1;box-shadow:0 0 6px var(--green)}50%{opacity:.3;box-shadow:none}}
-.hbtn{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:1px;background:transparent;border:1px solid var(--border);color:var(--muted2);padding:6px 14px;border-radius:3px;cursor:pointer;transition:all .2s}
-.hbtn:hover{border-color:var(--accent);color:var(--accent)}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: var(--sans); background: var(--bg); color: var(--text); min-height: 100vh; }
+body::before { content:''; position:fixed; inset:0; background-image: linear-gradient(rgba(0,212,255,.018) 1px,transparent 1px), linear-gradient(90deg,rgba(0,212,255,.018) 1px,transparent 1px); background-size:50px 50px; pointer-events:none; z-index:0; }
 
-/* data source status row */
-.src-row{position:relative;z-index:1;background:var(--s2);border-bottom:1px solid var(--border);padding:8px 28px;display:flex;gap:16px;align-items:center;flex-wrap:wrap}
-.src-badge{font-family:var(--mono);font-size:10px;padding:3px 10px;border-radius:20px;display:flex;align-items:center;gap:6px}
-.src-badge .sd{width:7px;height:7px;border-radius:50%}
-.sb-ok  {background:var(--gdim);color:var(--green);border:1px solid rgba(0,230,118,.2)}
-.sb-demo{background:var(--ydim);color:var(--yellow);border:1px solid rgba(255,215,64,.2)}
-.sb-err {background:var(--rdim);color:var(--red);border:1px solid rgba(255,69,96,.2)}
+/* ── TOAST ── */
+#toast { position:fixed; bottom:24px; right:24px; z-index:9999; font-family:var(--mono); font-size:12px; padding:10px 18px; border-radius:3px; background:var(--s2); border:1px solid var(--bord2); color:var(--text); transform:translateY(60px); opacity:0; transition:all .3s; pointer-events:none; }
+#toast.show { transform:translateY(0); opacity:1; }
+#toast.ok  { border-color:var(--green); color:var(--green); }
+#toast.err { border-color:var(--red);   color:var(--red);   }
 
-.leg-bar{position:relative;z-index:1;background:rgba(0,0,0,.15);border-bottom:1px solid var(--border);padding:7px 28px;display:flex;gap:20px;align-items:center;flex-wrap:wrap}
-.li{display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10px;color:var(--muted2)}
-.li-dot{width:9px;height:9px;border-radius:2px;flex-shrink:0}
+/* ── HEADER ── */
+header { position:sticky; top:0; z-index:50; background:rgba(7,9,12,.97); backdrop-filter:blur(20px); border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; padding:0 28px; height:60px; gap:16px; }
+.logo  { font-family:var(--mono); font-size:19px; font-weight:700; letter-spacing:-.5px; white-space:nowrap; }
+.logo em { color:var(--accent); font-style:normal; }
+.hstats { display:flex; gap:24px; }
+.hs     { text-align:center; }
+.hs-v   { font-family:var(--mono); font-size:15px; font-weight:700; }
+.hs-l   { font-size:9px; color:var(--muted); text-transform:uppercase; letter-spacing:1.5px; margin-top:1px; }
+.hright { display:flex; align-items:center; gap:10px; }
+.live-pill { display:flex; align-items:center; gap:6px; background:var(--gdim); border:1px solid rgba(0,230,118,.2); padding:5px 12px; border-radius:20px; font-family:var(--mono); font-size:9px; color:var(--green); text-transform:uppercase; letter-spacing:2px; white-space:nowrap; }
+.dot { width:7px; height:7px; border-radius:50%; background:var(--green); animation:blink 1.4s infinite; }
+@keyframes blink { 0%,100%{opacity:1;box-shadow:0 0 6px var(--green)} 50%{opacity:.3;box-shadow:none} }
+.hbtn { font-family:var(--mono); font-size:10px; text-transform:uppercase; letter-spacing:1px; background:transparent; border:1px solid var(--border); color:var(--muted2); padding:6px 14px; border-radius:3px; cursor:pointer; transition:all .2s; }
+.hbtn:hover { border-color:var(--accent); color:var(--accent); }
 
-main{position:relative;z-index:1;max-width:1480px;margin:0 auto;padding:22px 28px 80px}
+/* ── STATUS ROW ── */
+.src-row { position:relative; z-index:1; background:var(--s2); border-bottom:1px solid var(--border); padding:8px 28px; display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+.sbadge  { font-family:var(--mono); font-size:10px; padding:3px 10px; border-radius:20px; display:flex; align-items:center; gap:6px; }
+.sbadge .sd { width:7px; height:7px; border-radius:50%; }
+.sb-ok   { background:var(--gdim); color:var(--green);  border:1px solid rgba(0,230,118,.2); }
+.sb-wait { background:var(--ydim); color:var(--yellow); border:1px solid rgba(255,215,64,.2); }
+.sb-err  { background:var(--rdim); color:var(--red);    border:1px solid rgba(255,69,96,.2);  }
 
-#loadWrap{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:100px 0;gap:16px}
-.spinner{width:34px;height:34px;border:2px solid var(--bord2);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}
-@keyframes spin{to{transform:rotate(360deg)}}
-.load-txt{font-family:var(--mono);font-size:11px;color:var(--muted2);text-transform:uppercase;letter-spacing:2px}
+/* ── LEGEND ── */
+.leg-bar { position:relative; z-index:1; background:rgba(0,0,0,.15); border-bottom:1px solid var(--border); padding:7px 28px; display:flex; gap:20px; align-items:center; flex-wrap:wrap; }
+.li { display:flex; align-items:center; gap:6px; font-family:var(--mono); font-size:10px; color:var(--muted2); }
+.li-dot { width:9px; height:9px; border-radius:2px; flex-shrink:0; }
 
-.toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;gap:12px;flex-wrap:wrap}
-.filters{display:flex;gap:5px;flex-wrap:wrap}
-.fbtn{font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:1.5px;background:transparent;border:1px solid var(--border);color:var(--muted2);padding:6px 12px;border-radius:2px;cursor:pointer;transition:all .15s}
-.fbtn:hover{border-color:var(--bord2);color:var(--text)}
-.fbtn.on{border-color:var(--accent);color:var(--accent);background:var(--adim)}
-.fbtn.gon{border-color:var(--green);color:var(--green);background:var(--gdim)}
-.sort-row{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:1px}
-.sort-sel{font-family:var(--mono);font-size:11px;background:var(--s1);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:2px;cursor:pointer;outline:none}
-.upd-row{display:flex;justify-content:space-between;margin-bottom:14px;font-family:var(--mono);font-size:10px;color:var(--muted)}
-.next-upd{color:var(--accent)}
+/* ── MAIN ── */
+main { position:relative; z-index:1; max-width:1480px; margin:0 auto; padding:22px 28px 80px; }
 
-/* CARDS */
-.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(400px,1fr));gap:13px}
-.card{background:var(--s1);border:1px solid var(--border);border-radius:4px;padding:18px 20px;cursor:pointer;transition:border-color .2s,transform .2s,box-shadow .2s;position:relative;animation:fadeUp .3s ease both}
-@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
-.card:hover{transform:translateY(-2px);box-shadow:0 8px 28px rgba(0,0,0,.3)}
-.card.t-none{border-left:3px solid var(--muted)}
-.card.t-sm  {border-left:3px solid var(--muted2)}
-.card.t-md  {border-left:3px solid var(--yellow)}
-.card.t-lg  {border-left:3px solid var(--green)}
-.card.t-xl  {border-left:3px solid var(--red)}
+/* loading / error screens */
+.screen { display:flex; flex-direction:column; align-items:center; justify-content:center; padding:100px 0; gap:16px; }
+.spinner { width:34px; height:34px; border:2px solid var(--bord2); border-top-color:var(--accent); border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to{transform:rotate(360deg)} }
+.screen-txt  { font-family:var(--mono); font-size:11px; color:var(--muted2); text-transform:uppercase; letter-spacing:2px; text-align:center; }
+.screen-icon { font-size:40px; }
+.retry-btn   { font-family:var(--mono); font-size:11px; text-transform:uppercase; letter-spacing:1px; background:transparent; border:1px solid var(--accent); color:var(--accent); padding:8px 20px; border-radius:3px; cursor:pointer; margin-top:8px; }
 
-.card-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:11px;gap:8px}
-.cat{font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:2px;color:var(--muted2);background:rgba(255,255,255,.04);padding:3px 8px;border-radius:2px;border:1px solid var(--border)}
-.badges{display:flex;gap:5px;flex-wrap:wrap}
-.badge{font-family:var(--mono);font-size:10px;font-weight:700;padding:2px 9px;border-radius:2px;white-space:nowrap}
-.b-g{background:var(--gdim);color:var(--green);border:1px solid rgba(0,230,118,.15)}
-.b-r{background:var(--rdim);color:var(--red);border:1px solid rgba(255,69,96,.15)}
-.b-p{background:var(--kdim);color:var(--kalshi);border:1px solid rgba(167,139,250,.2)}
-.b-n{background:rgba(255,255,255,.04);color:var(--muted2);border:1px solid var(--border)}
+/* ── TOOLBAR ── */
+.toolbar   { display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; gap:12px; flex-wrap:wrap; }
+.filters   { display:flex; gap:5px; flex-wrap:wrap; }
+.fbtn { font-family:var(--mono); font-size:9px; text-transform:uppercase; letter-spacing:1.5px; background:transparent; border:1px solid var(--border); color:var(--muted2); padding:6px 12px; border-radius:2px; cursor:pointer; transition:all .15s; }
+.fbtn:hover { border-color:var(--bord2); color:var(--text); }
+.fbtn.on  { border-color:var(--accent); color:var(--accent); background:var(--adim); }
+.fbtn.gon { border-color:var(--green);  color:var(--green);  background:var(--gdim); }
+.sort-row { display:flex; align-items:center; gap:8px; font-family:var(--mono); font-size:9px; color:var(--muted); text-transform:uppercase; letter-spacing:1px; }
+.sort-sel { font-family:var(--mono); font-size:11px; background:var(--s1); border:1px solid var(--border); color:var(--text); padding:6px 10px; border-radius:2px; cursor:pointer; outline:none; }
+.upd-row  { display:flex; justify-content:space-between; margin-bottom:14px; font-family:var(--mono); font-size:10px; color:var(--muted); }
+.next-upd { color:var(--accent); }
 
-.ctitle{font-size:13px;font-weight:600;line-height:1.45;margin-bottom:14px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+/* ── CARDS ── */
+.cards { display:grid; grid-template-columns:repeat(auto-fill,minmax(420px,1fr)); gap:14px; }
 
-/* Always 3 columns */
-.cprobs{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:11px}
-.cp{background:rgba(0,0,0,.25);border:1px solid var(--border);padding:11px 13px;border-radius:3px}
-.cp.poly  {border-color:rgba(0,212,255,.25);background:rgba(0,212,255,.05)}
-.cp.kalshi{border-color:rgba(167,139,250,.25);background:rgba(167,139,250,.05)}
-.cp.kalshi.na{opacity:.3;border-style:dashed}
-.cp-lbl{font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);margin-bottom:5px}
-.cp.poly .cp-lbl  {color:var(--accent)}
-.cp.kalshi .cp-lbl{color:var(--kalshi)}
-.cp-val{font-family:var(--mono);font-size:22px;font-weight:700;line-height:1}
-.cp.poly   .cp-val{color:var(--accent)}
-.cp.kalshi .cp-val{color:var(--kalshi)}
-.cp-dec{font-family:var(--mono);font-size:11px;color:var(--muted2);margin-top:3px}
+.card { background:var(--s1); border:1px solid var(--border); border-radius:5px; padding:18px 20px; cursor:pointer; transition:all .2s; animation:fadeUp .3s ease both; position:relative; }
+@keyframes fadeUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:none} }
+.card:hover { transform:translateY(-2px); box-shadow:0 8px 28px rgba(0,0,0,.3); }
 
-.cfooter{display:flex;justify-content:space-between;padding-top:9px;border-top:1px solid var(--border);font-family:var(--mono);font-size:9px;color:var(--muted)}
-.cfooter .v{color:var(--text)}
+/* left stripe colour = max divergence level */
+.card.lv-none { border-left:3px solid var(--border); }
+.card.lv-low  { border-left:3px solid var(--muted2); }
+.card.lv-mid  { border-left:3px solid var(--yellow); }
+.card.lv-high { border-left:3px solid var(--green);  }
+.card.lv-max  { border-left:3px solid var(--red);    }
 
-.empty-state{text-align:center;padding:80px 20px;grid-column:1/-1;color:var(--muted);font-family:var(--mono);font-size:13px;line-height:2}
+.card-top  { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px; gap:8px; }
+.cat { font-family:var(--mono); font-size:9px; text-transform:uppercase; letter-spacing:2px; color:var(--muted2); background:rgba(255,255,255,.04); padding:3px 8px; border-radius:2px; border:1px solid var(--border); }
+.div-score { font-family:var(--mono); font-size:11px; font-weight:700; padding:3px 10px; border-radius:2px; white-space:nowrap; }
+.ds-max  { background:var(--rdim); color:var(--red);    border:1px solid rgba(255,69,96,.2);  }
+.ds-high { background:var(--gdim); color:var(--green);  border:1px solid rgba(0,230,118,.2);  }
+.ds-mid  { background:var(--ydim); color:var(--yellow); border:1px solid rgba(255,215,64,.2); }
+.ds-low  { background:rgba(255,255,255,.04); color:var(--muted2); border:1px solid var(--border); }
 
-/* MODAL */
-.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:200;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(16px)}
-.overlay.open{display:flex}
-.modal{background:var(--s1);border:1px solid var(--bord2);border-radius:6px;width:100%;max-width:980px;max-height:92vh;overflow-y:auto;animation:mIn .28s cubic-bezier(.22,.68,0,1.2)}
-@keyframes mIn{from{opacity:0;transform:scale(.93) translateY(12px)}to{opacity:1;transform:none}}
-.mhead{padding:20px 26px 16px;border-bottom:1px solid var(--border);display:flex;gap:14px;align-items:flex-start;position:sticky;top:0;background:var(--s1);z-index:5}
-.mhead-left{flex:1}
-.mtitle{font-size:16px;font-weight:700;line-height:1.35;margin-bottom:8px}
-.mlinks{display:flex;gap:14px;flex-wrap:wrap}
-.mlink{font-family:var(--mono);font-size:10px;text-decoration:none;opacity:.7;transition:opacity .2s}
-.mlink:hover{opacity:1}
-.mlink.poly{color:var(--accent)}.mlink.ksh{color:var(--kalshi)}
-.mclose{background:transparent;border:1px solid var(--border);color:var(--muted2);padding:5px 12px;border-radius:2px;cursor:pointer;font-size:16px;transition:all .2s;flex-shrink:0}
-.mclose:hover{border-color:var(--red);color:var(--red)}
-.mbody{padding:20px 26px}
-.mstats{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:18px}
-.msb{background:var(--s2);border:1px solid var(--border);padding:12px 14px;border-radius:3px}
-.msb.pb{border-color:rgba(0,212,255,.22);background:rgba(0,212,255,.04)}
-.msb.kb{border-color:rgba(167,139,250,.22);background:rgba(167,139,250,.04)}
-.msb-lbl{font-family:var(--mono);font-size:8px;text-transform:uppercase;letter-spacing:2px;color:var(--muted);margin-bottom:6px}
-.msb-val{font-family:var(--mono);font-size:20px;font-weight:700}
-.alerts{display:flex;flex-direction:column;gap:8px;margin-bottom:18px}
-.abox{padding:12px 16px;border-radius:3px;font-family:var(--mono);font-size:11px;line-height:1.6;border:1px solid}
-.a-pk{background:rgba(167,139,250,.07);border-color:rgba(167,139,250,.25);color:var(--kalshi)}
-.a-pb{background:var(--gdim);border-color:rgba(0,230,118,.25);color:var(--green)}
-.a-kb{background:var(--rdim);border-color:rgba(255,69,96,.25);color:var(--red)}
-.a-ok{background:rgba(255,255,255,.03);border-color:var(--border);color:var(--muted2)}
-.chart-box{border:1px solid var(--border);background:rgba(0,0,0,.3);border-radius:3px;padding:16px;margin-bottom:20px}
-.chart-hd{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
-.chart-lbl{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:2px;color:var(--muted)}
-.cleg{display:flex;gap:12px;flex-wrap:wrap}
-.cl{display:flex;align-items:center;gap:5px;font-family:var(--mono);font-size:9px;color:var(--muted2)}
-.cl-line{width:16px;height:2px;border-radius:2px}
-canvas{display:block}
-.btitle{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:2px;color:var(--muted);margin-bottom:12px;display:flex;align-items:center;gap:10px}
-.btitle::after{content:'';flex:1;height:1px;background:var(--border)}
-.btable{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:7px}
-.brow{display:flex;justify-content:space-between;align-items:center;padding:9px 12px;background:var(--s2);border:1px solid var(--border);border-radius:3px;transition:border-color .15s}
-.brow:hover{border-color:var(--bord2)}
-.brow.pr{border-color:rgba(0,212,255,.25);background:rgba(0,212,255,.04)}
-.brow.kr{border-color:rgba(167,139,250,.25);background:rgba(167,139,250,.04)}
-.brow.best{border-color:rgba(0,230,118,.25)}
-.bname{font-family:var(--mono);font-size:10px;color:var(--muted2);text-transform:uppercase}
-.brow.pr .bname{color:var(--accent)}.brow.kr .bname{color:var(--kalshi)}
-.bright{text-align:right}
-.bval{font-family:var(--mono);font-size:13px;font-weight:700}
-.bdec{font-family:var(--mono);font-size:10px;color:var(--muted)}
-.bdiff{font-family:var(--mono);font-size:9px;margin-top:1px}
-.dg{color:var(--green)}.dr{color:var(--red)}
-.mnote{font-family:var(--mono);font-size:10px;color:var(--muted);background:var(--s2);border:1px solid var(--border);padding:12px 14px;border-radius:3px;margin-top:16px;line-height:1.7}
-.mnote a{color:var(--accent);text-decoration:none}
+/* question + outcome labels */
+.ctitle { font-size:14px; font-weight:700; line-height:1.4; margin-bottom:8px; }
+.outcome-row { display:flex; gap:8px; align-items:center; margin-bottom:14px; flex-wrap:wrap; }
+.opill { font-family:var(--mono); font-size:9px; font-weight:700; padding:2px 9px; border-radius:2px; text-transform:uppercase; letter-spacing:1px; }
+.opill.yes { background:var(--gdim); color:var(--green); border:1px solid rgba(0,230,118,.2); }
+.opill.no  { background:var(--rdim); color:var(--red);   border:1px solid rgba(255,69,96,.2); }
+.outcome-end { font-family:var(--mono); font-size:9px; color:var(--muted); margin-left:auto; }
 
-::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--bord2);border-radius:3px}
-@media(max-width:750px){
-  header{padding:0 14px}.hstats{display:none}
-  main{padding:14px 14px 60px}
-  .mstats{grid-template-columns:repeat(2,1fr)}
-  .mbody,.mhead{padding:14px}
-  .cprobs{grid-template-columns:1fr 1fr}
+/* 3 price boxes — always all three */
+.cprobs { display:grid; grid-template-columns:1fr 1fr 1fr; gap:6px; margin-bottom:12px; }
+.cp { background:rgba(0,0,0,.25); border:1px solid var(--border); padding:12px 13px; border-radius:3px; }
+.cp.poly   { border-color:rgba(0,212,255,.3);    background:rgba(0,212,255,.05);    }
+.cp.kalshi { border-color:rgba(167,139,250,.3);  background:rgba(167,139,250,.05);  }
+.cp.book   { border-color:var(--border); }
+.cp.no-data { opacity:.4; border-style:dashed; }
+.cp-src { font-family:var(--mono); font-size:9px; text-transform:uppercase; letter-spacing:1.5px; color:var(--muted); margin-bottom:4px; }
+.cp.poly   .cp-src { color:var(--accent); }
+.cp.kalshi .cp-src { color:var(--kalshi); }
+.cp-val { font-family:var(--mono); font-size:24px; font-weight:700; line-height:1; margin-bottom:3px; }
+.cp.poly   .cp-val { color:var(--accent); }
+.cp.kalshi .cp-val { color:var(--kalshi); }
+.cp-val.nd { font-size:14px; color:var(--muted); } /* "нет данных" */
+.cp-sub { font-family:var(--mono); font-size:10px; color:var(--muted2); }
+
+/* plain-language divergence chips */
+.div-chips { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px; }
+.chip { font-size:12px; padding:4px 10px; border-radius:3px; border:1px solid; line-height:1.4; }
+.chip.pk  { background:rgba(167,139,250,.07); border-color:rgba(167,139,250,.25); color:var(--kalshi); }
+.chip.pb  { background:var(--gdim);           border-color:rgba(0,230,118,.25);   color:#6effa8;       }
+.chip.pb.neg { background:var(--rdim); border-color:rgba(255,69,96,.25); color:#ff8099; }
+.chip.ok  { background:rgba(255,255,255,.03); border-color:var(--border); color:var(--muted2); }
+
+.cfooter { display:flex; justify-content:space-between; padding-top:10px; border-top:1px solid var(--border); font-family:var(--mono); font-size:9px; color:var(--muted); }
+.cfooter .v { color:var(--text); }
+
+/* ── MODAL ── */
+.overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.92); z-index:200; align-items:center; justify-content:center; padding:16px; backdrop-filter:blur(16px); }
+.overlay.open { display:flex; }
+.modal  { background:var(--s1); border:1px solid var(--bord2); border-radius:6px; width:100%; max-width:1000px; max-height:92vh; overflow-y:auto; animation:mIn .28s cubic-bezier(.22,.68,0,1.2); }
+@keyframes mIn { from{opacity:0;transform:scale(.93) translateY(12px)} to{opacity:1;transform:none} }
+
+.mhead  { padding:20px 28px 16px; border-bottom:1px solid var(--border); position:sticky; top:0; background:var(--s1); z-index:5; }
+.mq     { font-size:17px; font-weight:700; line-height:1.4; margin-bottom:10px; }
+.msrc-row { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px; }
+.msrc-box { padding:6px 14px; border-radius:3px; border:1px solid var(--border); background:var(--s2); display:flex; flex-direction:column; gap:2px; min-width:140px; }
+.msrc-box.poly   { border-color:rgba(0,212,255,.3);   background:rgba(0,212,255,.05);   }
+.msrc-box.kalshi { border-color:rgba(167,139,250,.3); background:rgba(167,139,250,.05); }
+.msrc-name { font-family:var(--mono); font-size:9px; text-transform:uppercase; letter-spacing:1.5px; color:var(--muted); }
+.msrc-box.poly .msrc-name   { color:var(--accent); }
+.msrc-box.kalshi .msrc-name { color:var(--kalshi); }
+.msrc-yes  { font-family:var(--mono); font-size:15px; font-weight:700; }
+.msrc-no   { font-family:var(--mono); font-size:11px; color:var(--muted2); margin-top:1px; }
+.msrc-nd   { font-family:var(--mono); font-size:12px; color:var(--muted); font-style:italic; }
+.mhead-row { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; }
+.mlinks    { display:flex; gap:12px; }
+.mlink     { font-family:var(--mono); font-size:10px; text-decoration:none; opacity:.7; transition:opacity .2s; }
+.mlink:hover { opacity:1; }
+.mlink.poly { color:var(--accent); }
+.mlink.ksh  { color:var(--kalshi); }
+.mclose { background:transparent; border:1px solid var(--border); color:var(--muted2); padding:5px 12px; border-radius:2px; cursor:pointer; font-size:16px; transition:all .2s; }
+.mclose:hover { border-color:var(--red); color:var(--red); }
+
+.mbody { padding:20px 28px; }
+
+/* divergence alerts */
+.alerts { display:flex; flex-direction:column; gap:8px; margin-bottom:20px; }
+.abox   { padding:13px 16px; border-radius:3px; font-size:13px; line-height:1.6; border:1px solid; }
+.abox strong { font-weight:700; }
+.a-pk { background:rgba(167,139,250,.07); border-color:rgba(167,139,250,.25); color:var(--kalshi); }
+.a-pb { background:var(--gdim); border-color:rgba(0,230,118,.25); color:#6effa8; }
+.a-pb.neg { background:var(--rdim); border-color:rgba(255,69,96,.25); color:#ff8099; }
+.a-ok { background:rgba(255,255,255,.03); border-color:var(--border); color:var(--muted2); }
+
+/* chart */
+.chart-box { border:1px solid var(--border); background:rgba(0,0,0,.3); border-radius:4px; padding:18px; margin-bottom:20px; }
+.chart-top { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:14px; gap:12px; flex-wrap:wrap; }
+.chart-title { font-family:var(--mono); font-size:10px; text-transform:uppercase; letter-spacing:2px; color:var(--muted); }
+.chart-sub   { font-size:11px; color:var(--muted2); margin-top:4px; }
+.cleg { display:flex; gap:14px; flex-wrap:wrap; }
+.cl   { display:flex; align-items:center; gap:5px; font-family:var(--mono); font-size:9px; color:var(--muted2); }
+.cl-line { width:16px; height:2px; border-radius:2px; }
+.chart-nodata { display:flex; align-items:center; justify-content:center; height:180px; font-family:var(--mono); font-size:12px; color:var(--muted); flex-direction:column; gap:8px; }
+.chart-loading-wrap { display:flex; align-items:center; justify-content:center; height:180px; gap:10px; font-family:var(--mono); font-size:11px; color:var(--muted2); }
+.cspinner { width:18px; height:18px; border:2px solid var(--bord2); border-top-color:var(--accent); border-radius:50%; animation:spin .8s linear infinite; }
+canvas { display:block; }
+
+/* bookmaker table */
+.btitle { font-family:var(--mono); font-size:10px; text-transform:uppercase; letter-spacing:2px; color:var(--muted); margin-bottom:12px; display:flex; align-items:center; gap:10px; }
+.btitle::after { content:''; flex:1; height:1px; background:var(--border); }
+.btable { display:grid; grid-template-columns:repeat(auto-fill,minmax(205px,1fr)); gap:7px; }
+.brow  { display:flex; justify-content:space-between; align-items:center; padding:9px 12px; background:var(--s2); border:1px solid var(--border); border-radius:3px; }
+.brow.pr   { border-color:rgba(0,212,255,.25);   background:rgba(0,212,255,.04);   }
+.brow.kr   { border-color:rgba(167,139,250,.25); background:rgba(167,139,250,.04); }
+.brow.best { border-color:rgba(0,230,118,.25); }
+.bname { font-family:var(--mono); font-size:10px; color:var(--muted2); text-transform:uppercase; }
+.brow.pr .bname { color:var(--accent); }
+.brow.kr .bname { color:var(--kalshi); }
+.bright { text-align:right; }
+.bval   { font-family:var(--mono); font-size:13px; font-weight:700; }
+.bdec   { font-family:var(--mono); font-size:10px; color:var(--muted); }
+.bdiff  { font-family:var(--mono); font-size:9px; margin-top:1px; }
+.dg { color:var(--green); } .dr { color:var(--red); }
+
+.book-note { font-family:var(--mono); font-size:10px; color:var(--muted); background:var(--s2); border:1px solid var(--border); padding:10px 14px; border-radius:3px; margin-top:14px; line-height:1.7; }
+.book-note a { color:var(--accent); text-decoration:none; }
+
+::-webkit-scrollbar { width:5px; } ::-webkit-scrollbar-track { background:transparent; } ::-webkit-scrollbar-thumb { background:var(--bord2); border-radius:3px; }
+
+@media(max-width:750px) {
+  header { padding:0 14px; } .hstats { display:none; }
+  main { padding:14px 14px 60px; }
+  .cprobs { grid-template-columns:1fr 1fr; }
+  .mbody, .mhead { padding:14px; }
+  .msrc-row { flex-direction:column; }
 }
 </style>
 </head>
@@ -171,9 +239,9 @@ canvas{display:block}
   <div class="logo">Poly<em>Edge</em></div>
   <div class="hstats">
     <div class="hs"><div class="hs-v" id="hTotal">—</div><div class="hs-l">Маркетов</div></div>
-    <div class="hs"><div class="hs-v" id="hKalshi">—</div><div class="hs-l">С Kalshi</div></div>
+    <div class="hs"><div class="hs-v" id="hKalshi">—</div><div class="hs-l">Совпало с Kalshi</div></div>
     <div class="hs"><div class="hs-v" id="hMaxDiv">—</div><div class="hs-l">Макс. расхождение</div></div>
-    <div class="hs"><div class="hs-v" id="hAvgDiv">—</div><div class="hs-l">Ср. расхождение</div></div>
+    <div class="hs"><div class="hs-v" id="hWith">—</div><div class="hs-l">С расхождением ≥5%</div></div>
   </div>
   <div class="hright">
     <div class="live-pill"><div class="dot"></div>Live</div>
@@ -181,32 +249,41 @@ canvas{display:block}
   </div>
 </header>
 
-<!-- Data source status -->
 <div class="src-row">
-  <div class="src-badge sb-demo" id="srcPoly"><div class="sd" style="background:var(--yellow)"></div>Polymarket: загрузка...</div>
-  <div class="src-badge sb-demo" id="srcKalshi"><div class="sd" style="background:var(--yellow)"></div>Kalshi: загрузка...</div>
-  <div class="src-badge sb-demo" id="srcBook"><div class="sd" style="background:var(--yellow)"></div>Букмекеры: Demo (модель)</div>
+  <div class="sbadge sb-wait" id="srcPoly">  <div class="sd" style="background:var(--yellow)"></div>Polymarket: загрузка...</div>
+  <div class="sbadge sb-wait" id="srcKalshi"><div class="sd" style="background:var(--yellow)"></div>Kalshi: загрузка...</div>
+  <div class="sbadge sb-wait" id="srcBook">  <div class="sd" style="background:var(--yellow)"></div>Букмекеры: нет ключа</div>
 </div>
 
 <div class="leg-bar">
-  <div class="li"><div class="li-dot" style="background:var(--accent)"></div>Polymarket</div>
-  <div class="li"><div class="li-dot" style="background:var(--kalshi)"></div>Kalshi</div>
-  <div class="li"><div class="li-dot" style="background:var(--muted2)"></div>Среднее 20 букмекеров</div>
+  <div class="li"><div class="li-dot" style="background:var(--accent)"></div>Polymarket — вероятность YES</div>
+  <div class="li"><div class="li-dot" style="background:var(--kalshi)"></div>Kalshi — вероятность YES</div>
+  <div class="li"><div class="li-dot" style="background:var(--muted2)"></div>Ср. букмекеры — вероятность YES</div>
   <div class="li"><div class="li-dot" style="background:var(--yellow)"></div>Расхождение 3–7%</div>
-  <div class="li"><div class="li-dot" style="background:var(--green)"></div>Расхождение 7–12%</div>
-  <div class="li"><div class="li-dot" style="background:var(--red)"></div>Расхождение &gt;12%</div>
+  <div class="li"><div class="li-dot" style="background:var(--green)"></div>7–12%</div>
+  <div class="li"><div class="li-dot" style="background:var(--red)"></div>&gt;12%</div>
 </div>
 
 <main>
-  <div id="loadWrap">
+  <!-- LOADING -->
+  <div class="screen" id="scrLoad">
     <div class="spinner"></div>
-    <div class="load-txt" id="loadTxt">Загрузка данных...</div>
+    <div class="screen-txt" id="loadTxt">Загрузка данных...</div>
   </div>
+
+  <!-- ERROR -->
+  <div class="screen" id="scrErr" style="display:none">
+    <div class="screen-icon">⚠️</div>
+    <div class="screen-txt" id="errTxt">Не удалось загрузить данные</div>
+    <button class="retry-btn" onclick="loadAll()">Попробовать снова</button>
+  </div>
+
+  <!-- APP -->
   <div id="appWrap" style="display:none">
     <div class="toolbar">
       <div class="filters">
         <button class="fbtn on"  onclick="setFilter('all',this)">Все события</button>
-        <button class="fbtn gon" onclick="setFilter('div',this)">🔥 С расхождением ≥3%</button>
+        <button class="fbtn gon" onclick="setFilter('div',this)">🔥 Расхождение ≥3%</button>
         <button class="fbtn"     onclick="setFilter('pk',this)">🟣 Poly ≠ Kalshi</button>
         <button class="fbtn"     onclick="setFilter('Politics',this)">Политика</button>
         <button class="fbtn"     onclick="setFilter('Sports',this)">Спорт</button>
@@ -216,9 +293,8 @@ canvas{display:block}
       <div class="sort-row">Сорт.:
         <select class="sort-sel" id="sortSel" onchange="renderCards()">
           <option value="maxdiv">По расхождению ↓</option>
-          <option value="pkdiv">По Poly↔Kalshi</option>
+          <option value="pk">По Poly↔Kalshi</option>
           <option value="vol">По объёму</option>
-          <option value="new">Новые</option>
         </select>
       </div>
     </div>
@@ -234,41 +310,44 @@ canvas{display:block}
 <div class="overlay" id="overlay" onclick="obg(event)">
   <div class="modal">
     <div class="mhead">
-      <div class="mhead-left">
-        <div class="mtitle" id="mtitle"></div>
+      <div class="mq" id="mq"></div>
+      <div class="msrc-row" id="mSrcs"></div>
+      <div class="mhead-row">
         <div class="mlinks">
-          <a class="mlink poly" id="mPoly" href="#" target="_blank">↗ Polymarket</a>
-          <a class="mlink ksh"  id="mKal"  href="#" target="_blank" style="display:none">↗ Kalshi</a>
+          <a class="mlink poly" id="mPolyLink" href="#" target="_blank">↗ Открыть на Polymarket</a>
+          <a class="mlink ksh"  id="mKalLink"  href="#" target="_blank" style="display:none">↗ Открыть на Kalshi</a>
         </div>
+        <button class="mclose" onclick="closeModal()">✕ Закрыть</button>
       </div>
-      <button class="mclose" onclick="closeModal()">✕</button>
     </div>
     <div class="mbody">
-      <div class="mstats"  id="mstats"></div>
-      <div class="alerts"  id="malerts"></div>
+      <div class="alerts" id="malerts"></div>
+
       <div class="chart-box">
-        <div class="chart-hd">
-          <div class="chart-lbl">История вероятностей (24ч)</div>
-          <div class="cleg">
-            <div class="cl"><div class="cl-line" style="background:var(--accent)"></div>Polymarket</div>
-            <div class="cl" id="kLeg" style="display:none"><div class="cl-line" style="background:var(--kalshi)"></div>Kalshi</div>
-            <div class="cl"><div class="cl-line" style="background:var(--muted2)"></div>Ср. 20 букм.</div>
+        <div class="chart-top">
+          <div>
+            <div class="chart-title">История цены YES — всё время торгов</div>
+            <div class="chart-sub" id="chartSub">Загрузка...</div>
           </div>
+          <div class="cleg" id="cleg"></div>
         </div>
-        <div style="height:210px"><canvas id="mChart"></canvas></div>
+        <div id="chartArea"></div>
       </div>
+
       <div class="btitle">Все источники — вероятность YES</div>
       <div class="btable" id="btable"></div>
-      <div class="mnote"  id="mnote"></div>
+      <div class="book-note" id="bookNote"></div>
     </div>
   </div>
 </div>
 
 <script>
 // ═══════════════════════════════════════
-// CONFIG
+//  CONFIG
 // ═══════════════════════════════════════
 const REFRESH_SEC = 60;
+
+// Bookmaker names — shown only when real API key provided
 const BOOKMAKERS = [
   'Pinnacle','Bet365','1xBet','Betfair','William Hill',
   'Unibet','Smarkets','Betsson','Bwin','Ladbrokes',
@@ -277,152 +356,146 @@ const BOOKMAKERS = [
 ];
 
 // ═══════════════════════════════════════
-// STATE
+//  STATE
 // ═══════════════════════════════════════
-let ALL = [], kalshiMap = {}, activeFilter = 'all';
-let countdown = REFRESH_SEC, timerID = null, chartInst = null;
+let ALL = [];
+let kalshiMap = {};        // norm(title) → kalshi market object
+let activeFilter = 'all';
+let countdown = REFRESH_SEC;
+let timerID   = null;
+let chartInst = null;
 
 // ═══════════════════════════════════════
-// INIT
+//  INIT
 // ═══════════════════════════════════════
-window.addEventListener('DOMContentLoaded', () => { loadAll(); startCountdown(); });
+window.addEventListener('DOMContentLoaded', () => {
+  loadAll();
+  startCountdown();
+});
 
 // ═══════════════════════════════════════
-// LOAD — tries /api/ first, falls back to demo immediately
+//  LOAD ALL DATA
 // ═══════════════════════════════════════
 async function loadAll() {
-  show('loadWrap'); hide('appWrap');
+  showScreen('load');
 
-  // --- POLYMARKET ---
+  // --- Polymarket ---
   setText('loadTxt', 'Загрузка Polymarket...');
   let polyOk = false;
   try {
-    const r = await fetch('/api/markets', { signal: AbortSignal.timeout(7000) });
-    if (r.ok) {
-      const j = await r.json();
-      if (j.markets && j.markets.length > 0) {
-        ALL = j.markets.map(mapPolyMarket);
-        polyOk = true;
-      }
+    const r = await fetch('/api/markets', { signal: AbortSignal.timeout(8000) });
+    const j = await r.json();
+    if (j.ok && j.markets.length > 0) {
+      ALL = j.markets.map(mapMarket);
+      polyOk = true;
+      setSrc('srcPoly', 'ok', `Polymarket: ${ALL.length} маркетов ✓`);
+    } else {
+      throw new Error(j.error || 'empty response');
     }
-  } catch(e) { console.warn('Poly API failed:', e.message); }
-
-  if (!polyOk) {
-    ALL = getDemoMarkets();
-    setSrcStatus('srcPoly', 'demo', 'Polymarket: Demo данные');
-  } else {
-    setSrcStatus('srcPoly', 'ok', `Polymarket: ${ALL.length} маркетов ✓`);
+  } catch (e) {
+    setSrc('srcPoly', 'err', `Polymarket: ошибка (${e.message})`);
+    // Cannot show anything without Polymarket data
+    setText('errTxt', `Polymarket недоступен: ${e.message}`);
+    showScreen('err');
+    return;
   }
 
-  // --- KALSHI ---
+  // --- Kalshi ---
   setText('loadTxt', 'Загрузка Kalshi...');
-  let kalshiOk = false;
+  kalshiMap = {};
   try {
-    const r = await fetch('/api/kalshi', { signal: AbortSignal.timeout(7000) });
-    if (r.ok) {
-      const j = await r.json();
-      if (j.markets && j.markets.length > 0) {
-        j.markets.forEach(km => { kalshiMap[norm(km.title)] = km; });
-        kalshiOk = true;
-      }
+    const r = await fetch('/api/kalshi', { signal: AbortSignal.timeout(8000) });
+    const j = await r.json();
+    if (j.ok && j.markets.length > 0) {
+      j.markets.forEach(km => { kalshiMap[norm(km.title)] = km; });
+      setSrc('srcKalshi', 'ok', `Kalshi: ${j.markets.length} маркетов ✓`);
+    } else {
+      throw new Error(j.error || 'empty');
     }
-  } catch(e) { console.warn('Kalshi API failed:', e.message); }
-
-  if (!kalshiOk) {
-    // inject demo kalshi matches for some markets
-    injectDemoKalshi();
-    setSrcStatus('srcKalshi', 'demo', 'Kalshi: Demo данные');
-  } else {
-    setSrcStatus('srcKalshi', 'ok', `Kalshi: ${Object.keys(kalshiMap).length} маркетов ✓`);
+  } catch (e) {
+    setSrc('srcKalshi', 'err', 'Kalshi: нет данных');
   }
 
-  // --- ENRICH ALL ---
+  // Bookmaker status (no real API integrated yet)
+  setSrc('srcBook', 'wait', 'Букмекеры: нет подключения');
+
+  // Enrich and render
   ALL.forEach(enrich);
   updateStats();
   renderCards();
-  hide('loadWrap'); show('appWrap');
+  showScreen('app');
   setText('updAt', 'Обновлено: ' + new Date().toLocaleTimeString('ru-RU'));
 }
 
 // ═══════════════════════════════════════
-// MAP RAW POLY MARKET
+//  MAP RAW POLYMARKET MARKET
 // ═══════════════════════════════════════
-function mapPolyMarket(m) {
-  let prices = []; try { prices = JSON.parse(m.outcomePrices || '[]'); } catch {}
-  const yp  = parseFloat(prices[0]) || parseFloat(m.yesProb) || 0.5;
-  const vol = parseFloat(m.volume) || 0;
+function mapMarket(m) {
+  const yp  = m.yesProb || 0.5;
+  const vol = m.volume || 0;
+  let outcomes = m.outcomes;
+  if (!Array.isArray(outcomes) || outcomes.length < 2) outcomes = ['Yes', 'No'];
   return {
-    id: m.id, slug: m.slug || '',
-    title: m.question || m.title || '',
-    category: guessCat(m),
-    yesProb: yp, volume: vol, volStr: fmtVol(vol),
-    endDate: m.endDate ? new Date(m.endDate).toLocaleDateString('ru-RU',{month:'short',year:'numeric'}) : '—',
-    createdAt: m.createdAt || new Date().toISOString(),
-    url: m.url || `https://polymarket.com/event/${m.slug||''}`,
+    id:          m.id,
+    slug:        m.slug || '',
+    question:    m.question || '',
+    outcomes,
+    yesProb:     yp,
+    noProb:      Math.round((1 - yp) * 1000) / 1000,
+    volume:      vol,
+    volStr:      fmtVol(vol),
+    endDate:     m.endDate ? new Date(m.endDate).toLocaleDateString('ru-RU', {day:'numeric',month:'short',year:'numeric'}) : '—',
+    createdAt:   m.createdAt || new Date().toISOString(),
+    url:         `https://polymarket.com/event/${m.slug}`,
+    clobTokenId: m.clobTokenId || null,
+    category:    guessCat(m.question, m.tags),
+    // enriched later:
+    kalshi:      null,
+    bookAvg:     null,
+    bookProbs:   null,
+    div_pk:      null,
+    div_pb:      null,
+    maxDiv:      0,
+    level:       'none',
   };
 }
 
 // ═══════════════════════════════════════
-// DEMO KALSHI — simulates Kalshi data with realistic divergences
-// ═══════════════════════════════════════
-function injectDemoKalshi() {
-  // For about 60% of markets create a Kalshi entry with a realistic divergence
-  ALL.forEach(m => {
-    if (Math.random() > 0.6) return; // ~60% get a Kalshi match
-    const poly = m.yesProb;
-    // Kalshi tends to be slightly more conservative (closer to 50%)
-    // divergence from 2% to 15% randomly
-    const divAmount = (Math.random() * 0.13 + 0.02) * (Math.random() > 0.5 ? 1 : -1);
-    const kalProb = Math.max(0.03, Math.min(0.97, poly + divAmount));
-    kalshiMap[norm(m.title)] = {
-      ticker: 'DEMO',
-      title: m.title,
-      yesProb: Math.round(kalProb * 100) / 100,
-      url: 'https://kalshi.com'
-    };
-  });
-}
-
-// ═══════════════════════════════════════
-// ENRICH — bookmaker odds + divergences
+//  ENRICH — attach kalshi, compute divergences
+//  NO bookmaker simulation — bookAvg stays null until real API
 // ═══════════════════════════════════════
 function enrich(m) {
-  m.kalshi = kalshiMap[norm(m.title)] || bestKMatch(m.title) || null;
+  // Find Kalshi match
+  m.kalshi = kalshiMap[norm(m.question)] || bestKMatch(m.question) || null;
 
-  const poly = m.yesProb;
+  const p  = m.yesProb;
+  const kp = m.kalshi?.yesProb ?? null;
 
-  // Bookmaker model: each bookie compresses odds toward 50% (real overround behavior)
-  m.bookProbs = BOOKMAKERS.map(() => {
-    const comp  = 0.70 + Math.random() * 0.15; // compression factor per bookie
-    const noise = (Math.random() - 0.5) * 0.05;
-    return Math.max(0.03, Math.min(0.96, 0.5 + (poly - 0.5) * comp + noise));
-  });
-  m.bookAvg = m.bookProbs.reduce((a, b) => a + b, 0) / m.bookProbs.length;
-
-  const kp = m.kalshi ? m.kalshi.yesProb : null;
-  const b  = m.bookAvg;
-
-  m.div_pb  = poly - b;
-  m.div_pk  = kp != null ? poly - kp : null;
-  m.div_kb  = kp != null ? kp   - b  : null;
-  m.abs_pb  = Math.abs(m.div_pb);
+  // Poly ↔ Kalshi
+  m.div_pk  = kp != null ? p - kp : null;
   m.abs_pk  = kp != null ? Math.abs(m.div_pk) : 0;
-  m.abs_kb  = kp != null ? Math.abs(m.div_kb) : 0;
-  m.maxDiv  = Math.max(m.abs_pb, m.abs_pk, m.abs_kb);
 
-  m.tier = m.maxDiv >= 0.12 ? 'xl'
-         : m.maxDiv >= 0.07 ? 'lg'
-         : m.maxDiv >= 0.03 ? 'md'
-         : m.maxDiv >  0    ? 'sm'
-         : 'none';
+  // Poly ↔ Bookmakers (only if real data arrives in future)
+  m.div_pb  = null;
+  m.abs_pb  = 0;
+  m.bookAvg = null;
+
+  m.maxDiv = Math.max(m.abs_pk, m.abs_pb);
+  m.level  = m.maxDiv >= 0.12 ? 'max'
+           : m.maxDiv >= 0.07 ? 'high'
+           : m.maxDiv >= 0.03 ? 'mid'
+           : m.maxDiv >  0    ? 'low'
+           : 'none';
 }
 
 // ═══════════════════════════════════════
-// KALSHI MATCHING
+//  KALSHI MATCHING
 // ═══════════════════════════════════════
-function norm(t) { return (t||'').toLowerCase().replace(/[^a-z0-9 ]/g,'').replace(/\s+/g,' ').trim(); }
-function bestKMatch(title) {
-  const words = norm(title).split(' ').filter(w => w.length > 3);
+function norm(t) {
+  return (t||'').toLowerCase().replace(/[^a-z0-9 ]/g,'').replace(/\s+/g,' ').trim();
+}
+function bestKMatch(question) {
+  const words = norm(question).split(' ').filter(w => w.length > 3);
   let best = null, bs = 0;
   for (const km of Object.values(kalshiMap)) {
     const s = words.filter(w => norm(km.title).includes(w)).length;
@@ -432,37 +505,37 @@ function bestKMatch(title) {
 }
 
 // ═══════════════════════════════════════
-// CATEGORY
+//  CATEGORY GUESS
 // ═══════════════════════════════════════
-function guessCat(m) {
-  const t = ((m.question || m.title || '') + JSON.stringify(m.tags || '')).toLowerCase();
+function guessCat(q, tags) {
+  const t = (q + JSON.stringify(tags || '')).toLowerCase();
   if (/trump|biden|election|president|congress|senate|government|vote|democrat|republic|ukraine|russia|war|nato|zelensky|putin|macron|modi/.test(t)) return 'Politics';
-  if (/bitcoin|btc|eth|ethereum|crypto|defi|nft|token|coin|solana|doge|bnb/.test(t)) return 'Crypto';
+  if (/bitcoin|btc|eth|ethereum|crypto|defi|nft|token|coin|solana|doge|bnb/.test(t))  return 'Crypto';
   if (/nba|nfl|nhl|mlb|soccer|football|basketball|tennis|formula|f1|champion|league|match|team|playoff|world cup|premier|bundesliga/.test(t)) return 'Sports';
   if (/fed|rate|gdp|recession|inflation|economy|stock|earnings|bank|dollar|euro|cpi|unemployment/.test(t)) return 'Economics';
   return 'Other';
 }
 
 // ═══════════════════════════════════════
-// STATS
+//  HEADER STATS
 // ═══════════════════════════════════════
 function updateStats() {
-  const kCount = ALL.filter(m => m.kalshi).length;
-  const maxDiv = ALL.length ? Math.max(...ALL.map(m => m.maxDiv)) : 0;
-  const avgDiv = ALL.length ? ALL.reduce((a, m) => a + m.maxDiv, 0) / ALL.length : 0;
+  const kCount  = ALL.filter(m => m.kalshi).length;
+  const maxDiv  = ALL.length ? Math.max(...ALL.map(m => m.maxDiv)) : 0;
+  const withDiv = ALL.filter(m => m.maxDiv >= 0.05).length;
   setText('hTotal',  ALL.length);
   setText('hKalshi', kCount);
-  setText('hMaxDiv', (maxDiv * 100).toFixed(1) + '%');
-  setText('hAvgDiv', (avgDiv * 100).toFixed(1) + '%');
+  setText('hMaxDiv', pct(maxDiv));
+  setText('hWith',   withDiv);
 }
 
 // ═══════════════════════════════════════
-// RENDER CARDS
+//  FILTER + RENDER CARDS
 // ═══════════════════════════════════════
 function setFilter(f, btn) {
   activeFilter = f;
   document.querySelectorAll('.fbtn').forEach(b => b.classList.remove('on','gon'));
-  btn.classList.add(f === 'div' || f === 'pk' ? 'gon' : 'on');
+  btn.classList.add(f==='div'||f==='pk' ? 'gon' : 'on');
   renderCards();
 }
 
@@ -475,202 +548,351 @@ function renderCards() {
   else if (activeFilter !== 'all') list = list.filter(m => m.category === activeFilter);
 
   if      (sort === 'maxdiv') list.sort((a,b) => b.maxDiv - a.maxDiv);
-  else if (sort === 'pkdiv')  list.sort((a,b) => b.abs_pk - a.abs_pk);
-  else if (sort === 'vol')    list.sort((a,b) => b.volume - a.volume);
-  else                        list.sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
+  else if (sort === 'pk')     list.sort((a,b) => b.abs_pk - a.abs_pk);
+  else                        list.sort((a,b) => b.volume - a.volume);
 
   const grid = $('grid');
   grid.innerHTML = '';
 
   if (!list.length) {
-    grid.innerHTML = '<div class="empty-state">Нет событий по выбранному фильтру.<br>Попробуй нажать «Все события».</div>';
+    grid.innerHTML = '<div style="text-align:center;padding:60px;color:var(--muted);font-family:var(--mono);font-size:13px;grid-column:1/-1">Нет событий по выбранному фильтру</div>';
     return;
   }
 
   list.forEach((m, i) => {
-    const p  = m.yesProb, kp = m.kalshi?.yesProb, b = m.bookAvg;
+    const p   = m.yesProb;
+    const kp  = m.kalshi?.yesProb ?? null;
+    const yL  = m.outcomes[0];
+    const nL  = m.outcomes[1];
 
-    // Badges
-    let badges = '';
-    if (kp != null) {
-      const d = m.div_pk, cls = m.abs_pk >= 0.03 ? 'b-p' : 'b-n';
-      badges += `<span class="badge ${cls}">P↔K ${d >= 0 ? '+' : ''}${(d*100).toFixed(1)}%</span>`;
+    // Divergence score badge
+    const dsClass = m.level==='max'?'ds-max':m.level==='high'?'ds-high':m.level==='mid'?'ds-mid':'ds-low';
+    const dsText  = m.maxDiv > 0.005 ? `↕ ${pct(m.maxDiv)}` : '≈ 0%';
+
+    // Kalshi price box
+    const kalBox = kp != null
+      ? `<div class="cp kalshi">
+           <div class="cp-src">Kalshi</div>
+           <div class="cp-val">${Math.round(kp*100)}%</div>
+           <div class="cp-sub">${dec(kp)}</div>
+         </div>`
+      : `<div class="cp kalshi no-data">
+           <div class="cp-src">Kalshi</div>
+           <div class="cp-val nd">нет данных</div>
+         </div>`;
+
+    // Bookmaker box — always "нет данных" until real API
+    const bookBox = `<div class="cp book no-data">
+        <div class="cp-src">Ср. 20 букм.</div>
+        <div class="cp-val nd">нет данных</div>
+        <div class="cp-sub" style="font-size:9px">нужен API ключ</div>
+      </div>`;
+
+    // Divergence chips
+    let chips = '';
+    if (kp != null && m.abs_pk >= 0.02) {
+      const higher = m.div_pk > 0 ? 'Polymarket' : 'Kalshi';
+      const lower  = m.div_pk > 0 ? 'Kalshi'     : 'Polymarket';
+      chips += `<div class="chip pk">🟣 <strong>${higher}</strong> выше ${lower} на <strong>${pct(m.abs_pk)}</strong></div>`;
     }
-    const dpb = m.div_pb;
-    badges += `<span class="badge ${m.abs_pb >= 0.03 ? (dpb > 0 ? 'b-g' : 'b-r') : 'b-n'}">P↔Б ${dpb >= 0?'+':''}${(dpb*100).toFixed(1)}%</span>`;
-
-    // Kalshi column
-    const kalCol = kp != null
-      ? `<div class="cp kalshi"><div class="cp-lbl">Kalshi</div><div class="cp-val">${(kp*100).toFixed(0)}%</div><div class="cp-dec">${dec(kp)}</div></div>`
-      : `<div class="cp kalshi na"><div class="cp-lbl">Kalshi</div><div class="cp-val" style="font-size:14px;color:var(--muted)">—</div><div class="cp-dec">нет данных</div></div>`;
-
-    const divColor = m.maxDiv >= 0.07 ? 'var(--green)' : m.maxDiv >= 0.03 ? 'var(--yellow)' : 'var(--muted2)';
+    if (!chips) {
+      chips = kp != null
+        ? `<div class="chip ok">✓ Polymarket и Kalshi согласуются</div>`
+        : `<div class="chip ok">— Сравнение с Kalshi: нет данных</div>`;
+    }
 
     const card = document.createElement('div');
-    card.className = `card t-${m.tier}`;
-    card.style.animationDelay = Math.min(i * .035, .7) + 's';
+    card.className = `card lv-${m.level}`;
+    card.style.animationDelay = Math.min(i * .035, .8) + 's';
     card.onclick = () => openModal(m);
     card.innerHTML = `
       <div class="card-top">
         <span class="cat">${m.category}</span>
-        <div class="badges">${badges}</div>
+        <span class="div-score ${dsClass}">${dsText}</span>
       </div>
-      <div class="ctitle">${m.title}</div>
+      <div class="ctitle">${m.question}</div>
+      <div class="outcome-row">
+        <span class="opill yes">${yL}</span>
+        <span style="color:var(--muted);font-size:11px">vs</span>
+        <span class="opill no">${nL}</span>
+        <span class="outcome-end">до ${m.endDate}</span>
+      </div>
       <div class="cprobs">
         <div class="cp poly">
-          <div class="cp-lbl">Polymarket</div>
-          <div class="cp-val">${(p*100).toFixed(0)}%</div>
-          <div class="cp-dec">${dec(p)}</div>
+          <div class="cp-src">Polymarket</div>
+          <div class="cp-val">${Math.round(p*100)}%</div>
+          <div class="cp-sub">${dec(p)}</div>
         </div>
-        ${kalCol}
-        <div class="cp">
-          <div class="cp-lbl">Ср. 20 букм.</div>
-          <div class="cp-val">${(b*100).toFixed(0)}%</div>
-          <div class="cp-dec">${dec(b)}</div>
-        </div>
+        ${kalBox}
+        ${bookBox}
       </div>
+      <div class="div-chips">${chips}</div>
       <div class="cfooter">
         <span>VOL: <span class="v">${m.volStr}</span></span>
-        <span>Расх.: <span style="color:${divColor}">${(m.maxDiv*100).toFixed(1)}%</span></span>
-        <span>${m.endDate}</span>
+        <span>Расхождение: ${m.maxDiv>0.005 ? `<span style="color:${m.level==='max'?'var(--red)':m.level==='high'?'var(--green)':'var(--yellow)'}">${pct(m.maxDiv)}</span>` : '<span style="color:var(--muted2)">нет</span>'}</span>
       </div>`;
     grid.appendChild(card);
   });
 }
 
 // ═══════════════════════════════════════
-// MODAL
+//  MODAL — real chart, no simulation
 // ═══════════════════════════════════════
-function openModal(m) {
-  setText('mtitle', m.title);
-  $('mPoly').href = m.url;
-  const kl = $('mKal');
-  if (m.kalshi) { kl.href = m.kalshi.url || '#'; kl.style.display=''; }
-  else           { kl.style.display='none'; }
+async function openModal(m) {
+  const p  = m.yesProb;
+  const kp = m.kalshi?.yesProb ?? null;
+  const yL = m.outcomes[0];
+  const nL = m.outcomes[1];
 
-  const p = m.yesProb, b = m.bookAvg, kp = m.kalshi?.yesProb ?? null;
-  const maxB = Math.max(...m.bookProbs);
+  // Question
+  setText('mq', m.question);
+  $('mPolyLink').href = m.url;
+  const kl = $('mKalLink');
+  if (m.kalshi?.url) { kl.href = m.kalshi.url; kl.style.display = ''; }
+  else                { kl.style.display = 'none'; }
 
-  $('mstats').innerHTML = `
-    <div class="msb pb"><div class="msb-lbl">Polymarket</div><div class="msb-val" style="color:var(--accent)">${pct(p)}</div></div>
-    ${kp!=null
-      ? `<div class="msb kb"><div class="msb-lbl">Kalshi</div><div class="msb-val" style="color:var(--kalshi)">${pct(kp)}</div></div>`
-      : `<div class="msb"><div class="msb-lbl">Kalshi</div><div class="msb-val" style="color:var(--muted);font-size:15px">—</div></div>`}
-    <div class="msb"><div class="msb-lbl">Ср. 20 букм.</div><div class="msb-val">${pct(b)}</div></div>
-    ${kp!=null
-      ? `<div class="msb"><div class="msb-lbl">Poly ↔ Kalshi</div><div class="msb-val" style="color:${m.abs_pk>=0.03?'var(--kalshi)':'var(--muted2)'};font-size:18px">${sgn(m.div_pk)}</div></div>`
-      : `<div class="msb"><div class="msb-lbl">Poly ↔ Kalshi</div><div class="msb-val" style="color:var(--muted);font-size:15px">—</div></div>`}
-    <div class="msb"><div class="msb-lbl">Poly ↔ Букм.</div><div class="msb-val" style="color:${m.abs_pb>=0.03?(m.div_pb>0?'var(--green)':'var(--red)'):'var(--muted2)'};font-size:18px">${sgn(m.div_pb)}</div></div>
-  `;
+  // Source boxes with YES/NO for each outcome label
+  let srcsHTML = `
+    <div class="msrc-box poly">
+      <span class="msrc-name">Polymarket</span>
+      <span class="msrc-yes" style="color:var(--accent)">${yL}: ${Math.round(p*100)}%</span>
+      <span class="msrc-no">${nL}: ${Math.round((1-p)*100)}%</span>
+    </div>`;
+  if (kp != null) {
+    srcsHTML += `
+      <div class="msrc-box kalshi">
+        <span class="msrc-name">Kalshi</span>
+        <span class="msrc-yes" style="color:var(--kalshi)">${yL}: ${Math.round(kp*100)}%</span>
+        <span class="msrc-no">${nL}: ${Math.round((1-kp)*100)}%</span>
+      </div>`;
+  } else {
+    srcsHTML += `
+      <div class="msrc-box">
+        <span class="msrc-name">Kalshi</span>
+        <span class="msrc-nd">нет данных</span>
+      </div>`;
+  }
+  srcsHTML += `
+    <div class="msrc-box">
+      <span class="msrc-name">Ср. 20 букмекеров</span>
+      <span class="msrc-nd">нет данных — нужен API ключ</span>
+    </div>`;
+  $('mSrcs').innerHTML = srcsHTML;
 
+  // Alerts
   const al = $('malerts'); al.innerHTML = '';
-  if (kp!=null && m.abs_pk>=0.03) al.innerHTML+=`<div class="abox a-pk">⚡ Poly↔Kalshi: ${m.div_pk>0?'Polymarket':'Kalshi'} выше на ${(m.abs_pk*100).toFixed(1)}%</div>`;
-  if (m.abs_pb>=0.03)              al.innerHTML+=`<div class="abox a-pb">📈 Poly↔Букмекеры: ${m.div_pb>0?'Polymarket':'Букмекеры'} выше на ${(m.abs_pb*100).toFixed(1)}%</div>`;
-  if (kp!=null && m.abs_kb>=0.03)  al.innerHTML+=`<div class="abox a-kb">📊 Kalshi↔Букмекеры: ${m.div_kb>0?'Kalshi':'Букмекеры'} выше на ${(m.abs_kb*100).toFixed(1)}%</div>`;
-  if (!al.innerHTML)               al.innerHTML='<div class="abox a-ok">✓ Все источники согласуются — значительных расхождений нет.</div>';
+  if (kp != null && m.abs_pk >= 0.03) {
+    const higher = m.div_pk > 0 ? 'Polymarket' : 'Kalshi';
+    const lower  = m.div_pk > 0 ? 'Kalshi'     : 'Polymarket';
+    al.innerHTML += `<div class="abox a-pk">⚡ <strong>${higher}</strong> оценивает «${yL}» на <strong>${pct(m.abs_pk)} выше</strong>, чем ${lower}. Возможна арбитражная ситуация между двумя prediction markets.</div>`;
+  } else if (kp != null) {
+    al.innerHTML += `<div class="abox a-ok">✓ Polymarket и Kalshi согласуются — расхождение менее 3%.</div>`;
+  } else {
+    al.innerHTML += `<div class="abox a-ok">— Kalshi данных нет. Показываем только Polymarket.</div>`;
+  }
 
-  const N=25, step=Math.max(1,Math.floor(N/8));
-  const pH=simH(p,N), bH=simH(b,N), kH=kp!=null?simH(kp,N):null;
-  const lbls=pH.map((_,i)=>i===N?'сейчас':`-${N-i}ч`).filter((_,i)=>i%step===0||i===N);
-  const pF=pH.filter((_,i)=>i%step===0||i===N), bF=bH.filter((_,i)=>i%step===0||i===N);
-  const kF=kH?kH.filter((_,i)=>i%step===0||i===N):null;
-
-  if (chartInst) chartInst.destroy();
-  const ds=[
-    {label:'Polymarket',data:pF,borderColor:'#00d4ff',backgroundColor:'rgba(0,212,255,.07)',fill:true,tension:.4,pointRadius:2,borderWidth:2},
-    {label:'Ср. 20 букм.',data:bF,borderColor:'#5a7a90',fill:false,tension:.4,pointRadius:0,borderWidth:1.5,borderDash:[5,4]}
-  ];
-  if(kF) ds.push({label:'Kalshi',data:kF,borderColor:'#a78bfa',fill:false,tension:.4,pointRadius:2,borderWidth:1.5,borderDash:[3,3]});
-  $('kLeg').style.display = kp!=null?'':'none';
-
-  chartInst=new Chart($('mChart').getContext('2d'),{
-    type:'line',data:{labels:lbls,datasets:ds},
-    options:{responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{display:false},tooltip:{backgroundColor:'#0c1017',borderColor:'#1c2733',borderWidth:1,titleColor:'#3d5468',bodyColor:'#dde6ee',callbacks:{label:c=>` ${c.dataset.label}: ${c.parsed.y.toFixed(1)}%`}}},
-      scales:{x:{ticks:{color:'#3d5468',font:{family:'IBM Plex Mono',size:9}},grid:{color:'rgba(28,39,51,.6)'}},y:{ticks:{color:'#3d5468',font:{family:'IBM Plex Mono',size:9},callback:v=>v+'%'},grid:{color:'rgba(28,39,51,.6)'}}}}
-  });
-
-  const bt=$('btable');
-  bt.innerHTML=`
-    <div class="brow pr"><div><div class="bname">⬡ Polymarket</div></div><div class="bright"><div class="bval">${pct(p)}</div><div class="bdec">${dec(p)}</div></div></div>
-    ${kp!=null?`<div class="brow kr"><div><div class="bname">◈ Kalshi</div></div><div class="bright"><div class="bval">${pct(kp)}</div><div class="bdec">${dec(kp)}</div><div class="bdiff ${m.div_pk>0?'dg':'dr'}">${sgn(m.div_pk)} vs Poly</div></div></div>`:''}
-  `;
-  m.bookProbs.forEach((bp,i)=>{
-    const d=bp-b;
-    bt.innerHTML+=`<div class="brow${bp===maxB?' best':''}"><div><div class="bname">${BOOKMAKERS[i]}</div></div><div class="bright"><div class="bval">${pct(bp)}</div><div class="bdec">${dec(bp)}</div><div class="bdiff ${d>0?'dg':'dr'}">${d>=0?'+':''}${(d*100).toFixed(1)}% avg</div></div></div>`;
-  });
-
-  $('mnote').innerHTML='⚠ Коэффициенты 20 букмекеров смоделированы. Полимаркет и Kalshi — реальные данные.<br>Для реальных букмекерских данных: <a href="https://the-odds-api.com" target="_blank">the-odds-api.com</a> (бесплатно).';
+  // Open modal
   $('overlay').classList.add('open');
-  document.body.style.overflow='hidden';
+  document.body.style.overflow = 'hidden';
+
+  // Chart — destroy old
+  if (chartInst) { chartInst.destroy(); chartInst = null; }
+
+  // Legend
+  let legHTML = `<div class="cl"><div class="cl-line" style="background:var(--accent)"></div>Polymarket (${yL})</div>`;
+  if (kp != null) legHTML += `<div class="cl"><div class="cl-line" style="background:var(--kalshi)"></div>Kalshi (${yL})</div>`;
+  $('cleg').innerHTML = legHTML;
+
+  // Show loading
+  $('chartArea').innerHTML = `<div class="chart-loading-wrap"><div class="cspinner"></div>Загрузка реальной истории цен...</div>`;
+  setText('chartSub', 'Запрашиваем данные Polymarket CLOB...');
+
+  // Fetch real history
+  let history = null;
+  if (m.clobTokenId) {
+    try {
+      const r = await fetch(`/api/history?tokenId=${m.clobTokenId}`, { signal: AbortSignal.timeout(9000) });
+      const j = await r.json();
+      if (j.ok && j.history.length > 1) {
+        history = j.history;
+      }
+    } catch (e) { console.warn('History error:', e.message); }
+  }
+
+  if (history && history.length > 1) {
+    // Real chart
+    const spanMs   = history[history.length-1].t - history[0].t;
+    const spanDays = Math.round(spanMs / 86400000);
+    setText('chartSub', `Реальные данные · ${spanDays} дней · ${history.length} точек · Polymarket CLOB API`);
+
+    const polyData = history.map(pt => ({ x: pt.t, y: pt.p }));
+    const datasets = [
+      { label: `Polymarket (${yL})`, data: polyData, borderColor:'#00d4ff', backgroundColor:'rgba(0,212,255,.07)', fill:true, tension:.2, pointRadius:0, borderWidth:2 }
+    ];
+    if (kp != null) {
+      // Kalshi as a horizontal reference line across same time range
+      datasets.push({
+        label: `Kalshi (${yL})`,
+        data: [ { x: history[0].t, y: kp*100 }, { x: history[history.length-1].t, y: kp*100 } ],
+        borderColor: '#a78bfa', fill: false, tension: 0, pointRadius: 0, borderWidth: 1.5, borderDash: [4,4]
+      });
+    }
+
+    $('chartArea').innerHTML = '<div style="height:230px"><canvas id="mChart"></canvas></div>';
+    chartInst = new Chart($('mChart').getContext('2d'), {
+      type: 'line',
+      data: { datasets },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        interaction: { mode:'index', intersect:false },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor:'#0c1017', borderColor:'#1c2733', borderWidth:1,
+            titleColor:'#5a7a90', bodyColor:'#dde6ee',
+            callbacks: { label: c => ` ${c.dataset.label}: ${c.parsed.y.toFixed(1)}%` }
+          }
+        },
+        scales: {
+          x: {
+            type: 'time',
+            time: { tooltipFormat:'dd MMM yyyy', displayFormats:{ day:'dd MMM', week:'dd MMM', month:'MMM yy' } },
+            ticks: { color:'#3d5468', font:{family:'IBM Plex Mono',size:9}, maxRotation:0 },
+            grid:  { color:'rgba(28,39,51,.6)' }
+          },
+          y: {
+            min: 0, max: 100,
+            ticks: { color:'#3d5468', font:{family:'IBM Plex Mono',size:9}, callback: v => v + '%' },
+            grid:  { color:'rgba(28,39,51,.6)' }
+          }
+        }
+      }
+    });
+  } else {
+    // No history available — say so clearly
+    const reason = !m.clobTokenId ? 'токен ID недоступен для этого маркета' : 'история пуста или API недоступен';
+    setText('chartSub', 'Данных нет');
+    $('chartArea').innerHTML = `
+      <div class="chart-nodata">
+        <span style="font-size:28px">📭</span>
+        <span>История цены недоступна</span>
+        <span style="font-size:10px;color:var(--muted)">${reason}</span>
+      </div>`;
+  }
+
+  // Bookmaker table — Polymarket + Kalshi (real), bookmakers = "нет данных"
+  const bt = $('btable');
+  bt.innerHTML = `
+    <div class="brow pr">
+      <div>
+        <div class="bname">⬡ Polymarket</div>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-top:2px">${yL} / ${nL}</div>
+      </div>
+      <div class="bright">
+        <div class="bval">${pct(p)}</div>
+        <div class="bdec">${dec(p)}</div>
+      </div>
+    </div>
+    ${kp != null ? `
+    <div class="brow kr">
+      <div>
+        <div class="bname">◈ Kalshi</div>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-top:2px">${yL} / ${nL}</div>
+      </div>
+      <div class="bright">
+        <div class="bval">${pct(kp)}</div>
+        <div class="bdec">${dec(kp)}</div>
+        <div class="bdiff ${m.div_pk>0?'dg':'dr'}">${sgn(m.div_pk)} vs Poly</div>
+      </div>
+    </div>` : `
+    <div class="brow" style="opacity:.4;border-style:dashed">
+      <div><div class="bname">◈ Kalshi</div></div>
+      <div class="bright" style="font-family:var(--mono);font-size:11px;color:var(--muted)">нет данных</div>
+    </div>`}
+  `;
+
+  // Bookmakers — show "нет данных" for each
+  BOOKMAKERS.forEach(name => {
+    bt.innerHTML += `
+      <div class="brow" style="opacity:.35;border-style:dashed">
+        <div><div class="bname">${name}</div></div>
+        <div class="bright" style="font-family:var(--mono);font-size:10px;color:var(--muted)">нет данных</div>
+      </div>`;
+  });
+
+  $('bookNote').innerHTML = 'Коэффициенты букмекеров недоступны — для реальных данных нужен ключ <a href="https://the-odds-api.com" target="_blank">the-odds-api.com</a> (бесплатно: 500 запросов/мес). Когда он будет — напиши, подключу.';
 }
 
-function obg(e){if(e.target===$('overlay'))closeModal();}
-function closeModal(){$('overlay').classList.remove('open');document.body.style.overflow='';}
-document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
+function obg(e) { if (e.target === $('overlay')) closeModal(); }
+function closeModal() { $('overlay').classList.remove('open'); document.body.style.overflow = ''; }
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
 
 // ═══════════════════════════════════════
-// AUTO-REFRESH
+//  AUTO-REFRESH
 // ═══════════════════════════════════════
-function startCountdown(){
-  if(timerID)clearInterval(timerID); countdown=REFRESH_SEC;
-  timerID=setInterval(async()=>{
-    countdown--; setText('nextUpd',countdown+'с');
-    if(countdown<=0){countdown=REFRESH_SEC; await silentRefresh();}
-  },1000);
+function startCountdown() {
+  if (timerID) clearInterval(timerID);
+  countdown = REFRESH_SEC;
+  timerID = setInterval(async () => {
+    countdown--;
+    setText('nextUpd', countdown + 'с');
+    if (countdown <= 0) { countdown = REFRESH_SEC; await silentRefresh(); }
+  }, 1000);
 }
-async function silentRefresh(){
-  try{
-    const[pd,kd]=await Promise.allSettled([
-      fetch('/api/markets',{signal:AbortSignal.timeout(7000)}).then(r=>r.json()),
-      fetch('/api/kalshi', {signal:AbortSignal.timeout(7000)}).then(r=>r.json())
+
+async function silentRefresh() {
+  try {
+    const [pd, kd] = await Promise.allSettled([
+      fetch('/api/markets', { signal:AbortSignal.timeout(7000) }).then(r=>r.json()),
+      fetch('/api/kalshi',  { signal:AbortSignal.timeout(7000) }).then(r=>r.json()),
     ]);
-    if(pd.status==='fulfilled'&&pd.value.markets?.length){
-      ALL=pd.value.markets.map(mapPolyMarket);
+    if (pd.status==='fulfilled' && pd.value.ok) {
+      ALL = pd.value.markets.map(mapMarket);
+      setSrc('srcPoly', 'ok', `Polymarket: ${ALL.length} маркетов ✓`);
     }
-    if(kd.status==='fulfilled'&&kd.value.markets?.length){
-      kalshiMap={};
-      kd.value.markets.forEach(km=>{kalshiMap[norm(km.title)]=km;});
+    if (kd.status==='fulfilled' && kd.value.ok) {
+      kalshiMap = {};
+      kd.value.markets.forEach(km => { kalshiMap[norm(km.title)] = km; });
+      setSrc('srcKalshi', 'ok', `Kalshi: ${kd.value.markets.length} маркетов ✓`);
     }
-    ALL.forEach(enrich); updateStats(); renderCards();
-    setText('updAt','Обновлено: '+new Date().toLocaleTimeString('ru-RU'));
-  }catch(e){console.warn('Refresh failed',e);}
+    ALL.forEach(enrich);
+    updateStats();
+    renderCards();
+    setText('updAt', 'Обновлено: ' + new Date().toLocaleTimeString('ru-RU'));
+  } catch (e) { console.warn('Silent refresh failed:', e); }
 }
-function manualRefresh(){countdown=REFRESH_SEC;loadAll();}
+
+function manualRefresh() { countdown = REFRESH_SEC; loadAll(); }
 
 // ═══════════════════════════════════════
-// HELPERS
+//  HELPERS
 // ═══════════════════════════════════════
-function setSrcStatus(id, type, text) {
-  const el=$(id);
-  el.className = 'src-badge ' + (type==='ok'?'sb-ok':type==='err'?'sb-err':'sb-demo');
-  const dotColor = type==='ok'?'var(--green)':type==='err'?'var(--red)':'var(--yellow)';
-  el.innerHTML = `<div class="sd" style="background:${dotColor}"></div>${text}`;
+function showScreen(name) {
+  $('scrLoad').style.display  = name==='load' ? '' : 'none';
+  $('scrErr').style.display   = name==='err'  ? '' : 'none';
+  $('appWrap').style.display  = name==='app'  ? '' : 'none';
 }
-function simH(fv,n){const a=[];let v=Math.max(.03,Math.min(.97,fv+(Math.random()-.5)*.12));for(let i=0;i<=n;i++){v+=(fv-v)*.08+(Math.random()-.5)*.025;v=Math.max(.03,Math.min(.97,v));a.push(Math.round(v*1000)/10);}return a;}
-function fmtVol(v){if(v>=1e9)return'$'+(v/1e9).toFixed(1)+'B';if(v>=1e6)return'$'+(v/1e6).toFixed(1)+'M';if(v>=1e3)return'$'+(v/1e3).toFixed(0)+'K';return'$'+v.toFixed(0);}
-const dec=(p)=>(1/p).toFixed(2)+'x';
-const pct=(v)=>(v*100).toFixed(1)+'%';
-const sgn=(v)=>(v>=0?'+':'')+(v*100).toFixed(1)+'%';
-const $=(id)=>document.getElementById(id);
-const show=(id)=>$(id).style.display='';
-const hide=(id)=>$(id).style.display='none';
-const setText=(id,t)=>{const el=$(id);if(el)el.textContent=t;};
-function toast(msg,type=''){const el=$('toast');el.textContent=msg;el.className='show '+type;setTimeout(()=>{el.className='';},3000);}
-
-function getDemoMarkets(){
-  return[
-    {title:'Will Trump complete his second term without impeachment?',category:'Politics',yesProb:.82,volume:4200000,volStr:'$4.2M',endDate:'Jan 2029',createdAt:new Date().toISOString(),url:'https://polymarket.com',id:'d1',slug:'d1'},
-    {title:'Will Bitcoin reach $150k before end of 2026?',category:'Crypto',yesProb:.61,volume:8700000,volStr:'$8.7M',endDate:'Dec 2026',createdAt:new Date().toISOString(),url:'https://polymarket.com',id:'d2',slug:'d2'},
-    {title:'Will Real Madrid win UEFA Champions League 2025/26?',category:'Sports',yesProb:.22,volume:2100000,volStr:'$2.1M',endDate:'Jun 2026',createdAt:new Date().toISOString(),url:'https://polymarket.com',id:'d3',slug:'d3'},
-    {title:'Will US enter recession in 2026?',category:'Economics',yesProb:.38,volume:3500000,volStr:'$3.5M',endDate:'Dec 2026',createdAt:new Date().toISOString(),url:'https://polymarket.com',id:'d4',slug:'d4'},
-    {title:'Will Ukraine-Russia ceasefire be signed before 2027?',category:'Politics',yesProb:.55,volume:6300000,volStr:'$6.3M',endDate:'Dec 2026',createdAt:new Date().toISOString(),url:'https://polymarket.com',id:'d5',slug:'d5'},
-    {title:'Will Ethereum reach $10k in 2026?',category:'Crypto',yesProb:.44,volume:1800000,volStr:'$1.8M',endDate:'Dec 2026',createdAt:new Date().toISOString(),url:'https://polymarket.com',id:'d6',slug:'d6'},
-    {title:'Will Fed cut rates at least 3 times in 2026?',category:'Economics',yesProb:.67,volume:5100000,volStr:'$5.1M',endDate:'Dec 2026',createdAt:new Date().toISOString(),url:'https://polymarket.com',id:'d7',slug:'d7'},
-    {title:'Will Elon Musk leave DOGE role before 2027?',category:'Politics',yesProb:.72,volume:3200000,volStr:'$3.2M',endDate:'Dec 2026',createdAt:new Date().toISOString(),url:'https://polymarket.com',id:'d8',slug:'d8'},
-    {title:'Will Apple release AR glasses in 2026?',category:'Other',yesProb:.35,volume:2200000,volStr:'$2.2M',endDate:'Dec 2026',createdAt:new Date().toISOString(),url:'https://polymarket.com',id:'d9',slug:'d9'},
-    {title:'Will S&P 500 hit 7000 in 2026?',category:'Economics',yesProb:.48,volume:4100000,volStr:'$4.1M',endDate:'Dec 2026',createdAt:new Date().toISOString(),url:'https://polymarket.com',id:'d10',slug:'d10'},
-  ];
+function setSrc(id, type, text) {
+  const el = $(id);
+  const cls = type==='ok'?'sb-ok':type==='err'?'sb-err':'sb-wait';
+  const col = type==='ok'?'var(--green)':type==='err'?'var(--red)':'var(--yellow)';
+  el.className = `sbadge ${cls}`;
+  el.innerHTML = `<div class="sd" style="background:${col}"></div>${text}`;
+}
+function fmtVol(v) {
+  if (v >= 1e9) return '$' + (v/1e9).toFixed(1) + 'B';
+  if (v >= 1e6) return '$' + (v/1e6).toFixed(1) + 'M';
+  if (v >= 1e3) return '$' + (v/1e3).toFixed(0) + 'K';
+  return '$' + v.toFixed(0);
+}
+const dec     = p  => (1/p).toFixed(2) + 'x';
+const pct     = v  => (v*100).toFixed(1) + '%';
+const sgn     = v  => (v>=0?'+':'') + (v*100).toFixed(1) + '%';
+const $       = id => document.getElementById(id);
+const setText = (id, t) => { const el=$(id); if(el) el.textContent=t; };
+function toast(msg, type='') {
+  const el=$('toast'); el.textContent=msg; el.className='show '+type;
+  setTimeout(()=>{ el.className=''; }, 3000);
 }
 </script>
 </body>

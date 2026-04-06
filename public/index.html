@@ -114,6 +114,7 @@ main{max-width:1440px;margin:0 auto;padding:20px 28px 80px}
 .pc.poly   .pc-yes-val{color:var(--poly)}
 .pc.kalshi .pc-yes-val{color:var(--kalshi)}
 .pc-yes-odds{font-family:var(--mono);font-size:10px;color:var(--muted2)}
+.pc-yes-name{font-family:var(--sans);font-size:10px;color:var(--muted2);max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 /* NO row */
 .pc-no{display:flex;align-items:baseline;gap:5px}
@@ -417,25 +418,55 @@ function buildEv(m) {
 
   let arb = null;
   if (ky != null) {
-    // KEY CHECK: if py + ky ≈ 1.0, the match is INVERTED (they track opposite outcomes)
-    // Example: Poly YES=97%, Kalshi YES=2% → 97+2=99% → INVERTED → bad match, no arb
-    // Valid match: Poly YES=60%, Kalshi YES=65% → 60+65=125% → same direction ✓
-    const sumYY = py + ky;
-    const inverted = sumYY > 0.9 && sumYY < 1.1; // sum near 100% = inverted
+    // ═══════════════════════════════════════════════════
+    // CORRECT ARBITRAGE MATH
+    //
+    // On a binary market: YES + NO = $1.00 (guaranteed)
+    //
+    // Cross-platform arb = buy YES on one platform AND NO on the OTHER,
+    // so that regardless of outcome, one side always pays $1.00.
+    //
+    // For this to be profitable: cost of both legs < $1.00
+    //
+    // Strategy A: YES on Polymarket (costs py) + NO on Kalshi (costs kn=1-ky)
+    //   → If event=YES: Poly pays $1, Kalshi pays $0. Total in = $1.
+    //   → If event=NO:  Poly pays $0, Kalshi pays $1. Total in = $1.
+    //   → Profit = $1 - (py + kn) ... only if py + kn < $1
+    //
+    // Strategy B: NO on Polymarket (costs pn) + YES on Kalshi (costs ky)
+    //   → If event=YES: Poly pays $0, Kalshi pays $1. Total in = $1.
+    //   → If event=NO:  Poly pays $1, Kalshi pays $0. Total in = $1.
+    //   → Profit = $1 - (pn + ky) ... only if pn + ky < $1
+    //
+    // IMPORTANT: pn + ky < 1 is NOT arb if they represent opposite outcomes!
+    // e.g. Poly YES=38% (J.D. Vance wins), Kalshi YES=20% (J.D. Vance wins)
+    // pn=62%, ky=20%, pn+ky=82¢ — but this is NOT arb:
+    //   if Vance wins: Poly NO pays $0, Kalshi YES pays $1 → net: $1 - $0.82 = +$0.18
+    //   if Vance loses: Poly NO pays $1, Kalshi YES pays $0 → net: $1 - $0.82 = +$0.18
+    // Wait — this WOULD be arb! But only if Poly NO and Kalshi YES are opposite outcomes.
+    // Poly NO = "Vance does NOT win", Kalshi YES = "Vance DOES win" → these are indeed opposite!
+    // So pn + ky < 1 IS a valid arb strategy (Strategy B).
+    //
+    // The INVALID case is when the same market is matched to a DIFFERENT event on Kalshi.
+    // We detect this by checking if prices are wildly different (>40pp gap).
+    // ═══════════════════════════════════════════════════
 
-    if (!inverted) {
-      const costA = py + kn;  // Poly YES + Kalshi NO
-      const costB = pn + ky;  // Poly NO  + Kalshi YES
+    const costA = py + kn;   // Poly YES + Kalshi NO
+    const costB = pn + ky;   // Poly NO  + Kalshi YES
 
-      const isArbA = costA < 0.985 && py >= 0.02 && kn >= 0.02;
-      const isArbB = costB < 0.985 && pn >= 0.02 && ky >= 0.02;
+    // Sanity: if prices differ by more than 40pp, likely a bad keyword match
+    const priceDiff = Math.abs(py - ky);
+    const likelyBadMatch = priceDiff > 0.40;
 
-      // Cap ROI at 25% — anything higher is almost certainly a bad keyword match
-      const roiA = isArbA ? ((1 - costA) / costA) * 100 : 0;
-      const roiB = isArbB ? ((1 - costB) / costB) * 100 : 0;
+    if (!likelyBadMatch) {
+      const isArbA = costA < 0.985;
+      const isArbB = costB < 0.985;
+      const roiA   = isArbA ? ((1 - costA) / costA) * 100 : 0;
+      const roiB   = isArbB ? ((1 - costB) / costB) * 100 : 0;
 
-      const validA = isArbA && roiA <= 25;
-      const validB = isArbB && roiB <= 25;
+      // Only show arb if ROI is realistic (0.5%–20%)
+      const validA = isArbA && roiA >= 0.5 && roiA <= 20;
+      const validB = isArbB && roiB >= 0.5 && roiB <= 20;
 
       if (validA || validB) {
         const useA  = validA && (!validB || costA <= costB);
@@ -443,29 +474,36 @@ function buildEv(m) {
         arb = {
           type: 'arb',
           cost, profit: 1 - cost, roi: ((1 - cost) / cost) * 100,
+          // Poly side
           polyBuy:     useA ? 'YES' : 'NO',
+          polyPrice:   useA ? py   : pn,
+          polyOutcome: useA ? (m.outcomes?.[0]||'Yes') : (m.outcomes?.[1]||'No'),
+          // Kalshi side
           kalBuy:      useA ? 'NO'  : 'YES',
-          polyPrice:   useA ? py : pn,
-          kalPrice:    useA ? kn : ky,
-          polyOutcome: useA ? m.outcomes?.[0]||'Да' : m.outcomes?.[1]||'Нет',
-          kalOutcome:  useA ? (km.no_sub_title||m.outcomes?.[1]||'Нет') : (km.yes_sub_title||m.outcomes?.[0]||'Да'),
+          kalPrice:    useA ? kn   : ky,
+          kalOutcome:  useA ? (km.no_sub_title  || m.outcomes?.[1] || 'No')
+                            : (km.yes_sub_title || m.outcomes?.[0] || 'Yes'),
         };
       } else {
+        // No arb — show divergence if ≥3%
         const diff = Math.abs(py - ky);
         if (diff >= 0.03) {
           arb = { type:'diff', diff,
             higher: py > ky ? 'Polymarket' : 'Kalshi',
-            lower:  py > ky ? 'Kalshi' : 'Polymarket',
+            lower:  py > ky ? 'Kalshi'     : 'Polymarket',
           };
         }
       }
     }
   }
 
+  // The event's YES outcome name (e.g. "J.D. Vance" or "Yes")
+  const yLabel = m.outcomes?.[0] || 'Yes';
+  const nLabel = m.outcomes?.[1] || 'No';
+
   return {
     id: m.id, q: m.question,
-    yL: m.outcomes?.[0] || 'Да',
-    nL: m.outcomes?.[1] || 'Нет',
+    yL: yLabel, nL: nLabel,
     cat: guessCat(m.question, m.tags),
     py, pn, ky, kn, kal: km, arb,
     vol: m.volume || 0, volS: fmtVol(m.volume || 0),
@@ -477,14 +515,16 @@ function buildEv(m) {
   };
 }
 
-// Kalshi URL: https://kalshi.com/markets/{series}/{event_ticker}
-// Found from search: e.g. https://kalshi.com/markets/kxnbagame/kxnbagame-26apr06nykatl
+// Kalshi URL — берём готовый из API, или строим по series/event_ticker
 function kalshiUrl(km) {
   if (!km) return null;
+  // API уже строит правильный URL в kalshi.js
+  if (km.url && km.url !== 'https://kalshi.com') return km.url;
+  // Строим вручную: /markets/{series}/{event_ticker}
   const et = (km.event_ticker || km.ticker || '').toLowerCase();
   const st = (km.series_ticker || et.split('-')[0] || '').toLowerCase();
-  if (st && et) return `https://kalshi.com/markets/${st}/${et}`;
-  if (et)       return `https://kalshi.com/markets/${et}`;
+  if (st && et && st !== et) return `https://kalshi.com/markets/${st}/${et}`;
+  if (et) return `https://kalshi.com/markets/${et}`;
   return 'https://kalshi.com';
 }
 function norm(t){ return (t||'').toLowerCase().replace(/[^a-z0-9 ]/g,' ').replace(/\s+/g,' ').trim(); }
@@ -576,17 +616,19 @@ function makeCard(ev, i) {
   return card;
 }
 
-// Price cell with YES and NO both labeled
+// Price cell — показывает реальные имена исходов (не просто "Yes"/"No")
 function priceCell(cls, src, yes, no, yL, nL) {
   return `<div class="pc ${cls}">
     <div class="pc-src">${src}</div>
     <div class="pc-yes">
-      <span class="pc-yes-lbl">${yL}</span>
+      <span class="pc-yes-lbl" title="YES">✓</span>
+      <span class="pc-yes-name">${yL}</span>
       <span class="pc-yes-val">${Math.round(yes*100)}%</span>
       <span class="pc-yes-odds">${dec(yes)}</span>
     </div>
     <div class="pc-no">
-      <span class="pc-no-lbl">${nL}</span>
+      <span class="pc-no-lbl" title="NO">✗</span>
+      <span class="pc-yes-name" style="color:var(--muted2)">${nL}</span>
       <span class="pc-no-val">${Math.round(no*100)}% · ${dec(no)}</span>
     </div>
   </div>`;
@@ -595,25 +637,30 @@ function priceCell(cls, src, yes, no, yL, nL) {
 function buildDetail(ev) {
   const isArb  = ev.arb?.type==='arb';
   const isDiff = ev.arb?.type==='diff';
-
-  // Correct Kalshi URL using series ticker
   const kalUrl = kalshiUrl(ev.kal);
+
+  // Outcome label helpers — show the real name (e.g. "J.D. Vance") not just "Yes"/"No"
+  const polyYesName = ev.yL; // e.g. "J.D. Vance" or "Yes"
+  const polyNoName  = ev.nL; // e.g. "Not J.D. Vance" or "No"
+  const kalYesName  = ev.kal?.yes_sub_title || ev.yL;
+  const kalNoName   = ev.kal?.no_sub_title  || ev.nL;
 
   let explain = '';
   if (isArb) {
-    const polyOutcome = ev.arb.polyBuy === 'YES' ? ev.yL : ev.nL;
-    const kalOutcome  = ev.arb.kalBuy  === 'YES' ? ev.yL : ev.nL;
+    const polyName = ev.arb.polyBuy === 'YES' ? polyYesName : polyNoName;
+    const kalName  = ev.arb.kalBuy  === 'YES' ? kalYesName  : kalNoName;
     explain = `<div class="explain arb">
       🟢 <strong>Арбитраж!</strong><br>
-      Купи <strong>«${polyOutcome}»</strong> на Polymarket за <strong>${pct(ev.arb.polyPrice)}</strong><br>
-      + купи <strong>«${kalOutcome}»</strong> на Kalshi за <strong>${pct(ev.arb.kalPrice)}</strong><br>
-      Итого: <strong>${(ev.arb.cost*100).toFixed(1)}¢</strong>.
-      Один из исходов всегда выплатит <strong>100¢</strong> — это противоположные стороны.<br>
+      На <strong>Polymarket</strong>: купи <strong>«${polyName}»</strong> за <strong>${pct(ev.arb.polyPrice)}</strong><br>
+      На <strong>Kalshi</strong>: купи <strong>«${kalName}»</strong> за <strong>${pct(ev.arb.kalPrice)}</strong><br>
+      <br>
+      Итого вложено: <strong>${(ev.arb.cost*100).toFixed(1)}¢</strong> —
+      один из исходов всегда выплатит <strong>100¢</strong>.<br>
       Гарантированная прибыль: <strong>+${(ev.arb.profit*100).toFixed(1)}¢ (${ev.arb.roi.toFixed(2)}% ROI)</strong>
     </div>`;
   } else if (isDiff) {
     explain = `<div class="explain diff">
-      ⚡ <strong>${ev.arb.higher}</strong> оценивает «${ev.yL}» на <strong>${pct(ev.arb.diff)} выше</strong> чем ${ev.arb.lower}.
+      ⚡ <strong>${ev.arb.higher}</strong> оценивает «${polyYesName}» на <strong>${pct(ev.arb.diff)} выше</strong> чем ${ev.arb.lower}.
     </div>`;
   }
 
@@ -622,12 +669,12 @@ function buildDetail(ev) {
       <div class="db-lbl">⬡ Polymarket</div>
       <div class="db-yn">
         <div class="db-side">
-          <span class="db-side-lbl yes">${ev.yL} (YES)</span>
+          <span class="db-side-lbl yes">✓ ${polyYesName}</span>
           <span class="db-side-val" style="color:var(--green)">${Math.round(ev.py*100)}%</span>
           <span class="db-side-odds">${dec(ev.py)}</span>
         </div>
         <div class="db-side">
-          <span class="db-side-lbl no">${ev.nL} (NO)</span>
+          <span class="db-side-lbl no">✗ ${polyNoName}</span>
           <span class="db-side-val" style="color:var(--red)">${Math.round(ev.pn*100)}%</span>
           <span class="db-side-odds">${dec(ev.pn)}</span>
         </div>
@@ -638,12 +685,12 @@ function buildDetail(ev) {
       <div class="db-lbl">◈ Kalshi</div>
       <div class="db-yn">
         <div class="db-side">
-          <span class="db-side-lbl yes">${ev.yL} (YES)</span>
+          <span class="db-side-lbl yes">✓ ${kalYesName}</span>
           <span class="db-side-val" style="color:var(--green)">${Math.round(ev.ky*100)}%</span>
           <span class="db-side-odds">${dec(ev.ky)}</span>
         </div>
         <div class="db-side">
-          <span class="db-side-lbl no">${ev.nL} (NO)</span>
+          <span class="db-side-lbl no">✗ ${kalNoName}</span>
           <span class="db-side-val" style="color:var(--red)">${Math.round(ev.kn*100)}%</span>
           <span class="db-side-odds">${dec(ev.kn)}</span>
         </div>

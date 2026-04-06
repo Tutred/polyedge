@@ -265,40 +265,115 @@ window.addEventListener('DOMContentLoaded', () => { loadAll(); startTimer(); });
 async function loadAll() {
   showScr('load'); setText('loadTxt', 'Загрузка Polymarket...');
 
-  // 1. Polymarket
+  // 1. Polymarket — try /api/markets first, fall back to direct API
   let poly = null;
-  try {
-    const r = await fetch('/api/markets', { signal: AbortSignal.timeout(9000) });
-    const j = await r.json();
-    if (j.ok && j.markets?.length) {
-      poly = j.markets;
-      setSrc('srcPoly','ok',`Polymarket: ${j.markets.length} маркетов ✓`);
-    } else throw new Error(j.error || 'пустой ответ');
-  } catch(e) {
-    setSrc('srcPoly','err',`Polymarket: ${e.message}`);
-    setText('errTxt', `Polymarket недоступен: ${e.message}`);
-    showScr('err'); return;
+  const polyUrls = [
+    '/api/markets',
+    'https://gamma-api.polymarket.com/markets?active=true&closed=false&limit=50&order=volume&ascending=false',
+  ];
+
+  for (const url of polyUrls) {
+    try {
+      setText('loadTxt', url.startsWith('/') ? 'Загрузка Polymarket (через сервер)...' : 'Загрузка Polymarket (прямой запрос)...');
+      const r = await fetch(url, { signal: AbortSignal.timeout(10000) });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const j = await r.json();
+
+      // /api/markets returns { ok, markets }
+      // direct API returns array
+      const raw = j.markets || (Array.isArray(j) ? j : null);
+      if (!raw?.length) throw new Error('пустой ответ');
+
+      // Map raw Polymarket format if coming from direct API
+      poly = raw.map(m => {
+        // Already mapped by /api/markets
+        if (m.yesProb != null) return m;
+        // Raw from Polymarket
+        let prices = []; try { prices = JSON.parse(m.outcomePrices||'[]'); } catch {}
+        const yesProb = parseFloat(prices[0]) || 0.5;
+        if (yesProb < 0.02 || yesProb > 0.98) return null;
+        let outcomes = ['Yes','No']; try { outcomes = JSON.parse(m.outcomes||'["Yes","No"]'); } catch {}
+        let clobTokenId = null; try { const t=JSON.parse(m.clobTokenIds||'[]'); clobTokenId=t[0]||null; } catch {}
+        return {
+          id: m.id, slug: m.slug||'', question: m.question||'',
+          outcomes, yesProb: Math.round(yesProb*1000)/1000,
+          volume: parseFloat(m.volume)||0, endDate: m.endDate||null,
+          createdAt: m.createdAt||null, clobTokenId, tags: m.tags||[],
+        };
+      }).filter(Boolean);
+
+      if (poly.length) {
+        setSrc('srcPoly','ok',`Polymarket: ${poly.length} маркетов ✓`);
+        break;
+      }
+    } catch(e) {
+      console.warn(`[Poly] ${url} failed:`, e.message);
+      if (url === polyUrls[polyUrls.length-1]) {
+        // All urls failed
+        setSrc('srcPoly','err',`Polymarket: ${e.message}`);
+        setText('errTxt', `Не удалось загрузить Polymarket.\n\nОшибка: ${e.message}\n\nПопробуй обновить страницу.`);
+        showScr('err'); return;
+      }
+    }
   }
 
-  // 2. Kalshi
+  // 2. Kalshi — try /api/kalshi first, fall back to direct API
   setText('loadTxt', 'Загрузка Kalshi...');
   kalMap = {};
-  try {
-    const r = await fetch('/api/kalshi', { signal: AbortSignal.timeout(15000) });
-    const j = await r.json();
-    if (j.ok && j.markets?.length) {
-      j.markets.forEach(km => {
-        kalMap[norm(km.title)] = km;
-        if (km.ticker) kalMap[km.ticker.toLowerCase()] = km;
+  const kalUrls = [
+    '/api/kalshi',
+    'https://api.elections.kalshi.com/trade-api/v2/markets?limit=1000&status=active',
+  ];
+
+  for (const url of kalUrls) {
+    try {
+      const r = await fetch(url, {
+        headers: { 'Accept': 'application/json' },
+        signal: AbortSignal.timeout(15000),
       });
-      setSrc('srcKalshi','ok',`Kalshi: ${j.markets.length} маркетов ✓ (всего в API: ${j.total_raw})`);
-    } else {
-      const errMsg = j.error || (j.total_raw === 0 ? 'API вернул 0 маркетов' : 'пустой ответ');
-      throw new Error(errMsg);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const j = await r.json();
+
+      const raw = j.markets || [];
+      if (!raw.length) throw new Error('пустой ответ');
+
+      // Filter out multivariate combos and zero-price markets
+      const valid = raw.filter(m => {
+        if (m.mve_collection_ticker) return false;
+        if (m.market_type !== 'binary') return false;
+        const bid  = parseFloat(m.yes_bid_dollars  || '0');
+        const ask  = parseFloat(m.yes_ask_dollars  || '0');
+        const last = parseFloat(m.last_price_dollars || '0');
+        return Math.max(bid, ask, last) >= 0.02;
+      }).map(m => {
+        const bid  = parseFloat(m.yes_bid_dollars   || '0') || 0;
+        const ask  = parseFloat(m.yes_ask_dollars   || '0') || 0;
+        const last = parseFloat(m.last_price_dollars || '0') || 0;
+        let yesProb = (bid>=0.02&&ask>=0.02) ? (bid+ask)/2 : last||bid||ask;
+        yesProb = Math.round(Math.min(Math.max(yesProb,0.01),0.99)*10000)/10000;
+        return {
+          ticker: m.ticker, event_ticker: m.event_ticker||null,
+          title: m.title||m.ticker,
+          yes_sub_title: m.yes_sub_title||null, no_sub_title: m.no_sub_title||null,
+          yesProb, volume: parseFloat(m.volume_fp||'0')||0,
+          url: `https://kalshi.com/markets/${(m.event_ticker||m.ticker).toLowerCase()}`,
+        };
+      });
+
+      if (valid.length) {
+        valid.forEach(km => {
+          kalMap[norm(km.title)] = km;
+          if (km.ticker) kalMap[km.ticker.toLowerCase()] = km;
+        });
+        setSrc('srcKalshi','ok',`Kalshi: ${valid.length} маркетов ✓`);
+        break;
+      }
+    } catch(e) {
+      console.warn(`[Kalshi] ${url} failed:`, e.message);
+      if (url === kalUrls[kalUrls.length-1]) {
+        setSrc('srcKalshi','err',`Kalshi: ${e.message}`);
+      }
     }
-  } catch(e) {
-    console.error('[Kalshi load error]', e.message);
-    setSrc('srcKalshi','err',`Kalshi: ${e.message} — нажми 🔧 для диагностики`);
   }
 
   setSrc('srcBook','wait','Букмекеры: нет данных');

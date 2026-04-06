@@ -404,16 +404,23 @@ async function loadAll() {
   setText('loadTxt', 'Загрузка Kalshi...');
   kalshiMap = {};
   try {
-    const r = await fetch('/api/kalshi', { signal: AbortSignal.timeout(8000) });
+    const r = await fetch('/api/kalshi', { signal: AbortSignal.timeout(10000) });
     const j = await r.json();
-    if (j.ok && j.markets.length > 0) {
-      j.markets.forEach(km => { kalshiMap[norm(km.title)] = km; });
+    console.log('Kalshi response:', j); // debug
+    if (j.ok && j.markets && j.markets.length > 0) {
+      j.markets.forEach(km => {
+        kalshiMap[norm(km.title)] = km;
+        // also index by ticker for direct lookup
+        if (km.ticker) kalshiMap[km.ticker.toLowerCase()] = km;
+      });
       setSrc('srcKalshi', 'ok', `Kalshi: ${j.markets.length} маркетов ✓`);
     } else {
-      throw new Error(j.error || 'empty');
+      const errMsg = j.error || (j.markets?.length === 0 ? 'пустой ответ' : 'неизвестная ошибка');
+      throw new Error(errMsg);
     }
   } catch (e) {
-    setSrc('srcKalshi', 'err', 'Kalshi: нет данных');
+    console.error('Kalshi load error:', e.message);
+    setSrc('srcKalshi', 'err', `Kalshi: ошибка — ${e.message}`);
   }
 
   // Bookmaker status (no real API integrated yet)
@@ -462,25 +469,20 @@ function mapMarket(m) {
 
 // ═══════════════════════════════════════
 //  ENRICH — attach kalshi, compute divergences
-//  NO bookmaker simulation — bookAvg stays null until real API
 // ═══════════════════════════════════════
 function enrich(m) {
-  // Find Kalshi match
-  m.kalshi = kalshiMap[norm(m.question)] || bestKMatch(m.question) || null;
+  m.kalshi = findKalshiMatch(m.question);
 
   const p  = m.yesProb;
   const kp = m.kalshi?.yesProb ?? null;
 
-  // Poly ↔ Kalshi
-  m.div_pk  = kp != null ? p - kp : null;
-  m.abs_pk  = kp != null ? Math.abs(m.div_pk) : 0;
-
-  // Poly ↔ Bookmakers (only if real data arrives in future)
-  m.div_pb  = null;
-  m.abs_pb  = 0;
+  m.div_pk = kp != null ? p - kp : null;
+  m.abs_pk = kp != null ? Math.abs(m.div_pk) : 0;
+  m.div_pb = null;
+  m.abs_pb = 0;
   m.bookAvg = null;
 
-  m.maxDiv = Math.max(m.abs_pk, m.abs_pb);
+  m.maxDiv = m.abs_pk;
   m.level  = m.maxDiv >= 0.12 ? 'max'
            : m.maxDiv >= 0.07 ? 'high'
            : m.maxDiv >= 0.03 ? 'mid'
@@ -489,19 +491,47 @@ function enrich(m) {
 }
 
 // ═══════════════════════════════════════
-//  KALSHI MATCHING
+//  KALSHI MATCHING — smarter keyword matching
 // ═══════════════════════════════════════
 function norm(t) {
-  return (t||'').toLowerCase().replace(/[^a-z0-9 ]/g,'').replace(/\s+/g,' ').trim();
+  return (t||'').toLowerCase()
+    .replace(/[^a-z0-9 ]/g, ' ')
+    .replace(/\s+/g, ' ').trim();
 }
-function bestKMatch(question) {
-  const words = norm(question).split(' ').filter(w => w.length > 3);
-  let best = null, bs = 0;
+
+// Extract key words — skip common stop words
+const STOP = new Set(['will','the','a','an','in','on','at','to','of','for','be','is','are','was','by','or','and','that','this','with','than','over','under','from','into','have','has','not','its','per','vs','what','when','how','who']);
+
+function keywords(t) {
+  return norm(t).split(' ').filter(w => w.length > 2 && !STOP.has(w));
+}
+
+function findKalshiMatch(question) {
+  // 1. Exact title match
+  const nq = norm(question);
+  if (kalshiMap[nq]) return kalshiMap[nq];
+
+  // 2. Keyword overlap — need at least 2 strong keywords matching
+  const qWords = keywords(question);
+  if (qWords.length === 0) return null;
+
+  let best = null, bestScore = 0;
+
   for (const km of Object.values(kalshiMap)) {
-    const s = words.filter(w => norm(km.title).includes(w)).length;
-    if (s >= 3 && s > bs) { best = km; bs = s; }
+    const kWords = keywords(km.title);
+    // Count words that match in both directions
+    const hits = qWords.filter(w => kWords.some(kw => kw.includes(w) || w.includes(kw)));
+    // Score = hits / max(qWords, kWords) — Jaccard-like
+    const score = hits.length / Math.max(qWords.length, kWords.length);
+
+    if (hits.length >= 2 && score > bestScore) {
+      best = km;
+      bestScore = score;
+    }
   }
-  return best;
+
+  // Only accept if score is good enough (>= 30% overlap)
+  return bestScore >= 0.3 ? best : null;
 }
 
 // ═══════════════════════════════════════

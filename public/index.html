@@ -285,22 +285,37 @@ async function loadAll() {
       if (!raw?.length) throw new Error('пустой ответ');
 
       // Map raw Polymarket format if coming from direct API
-      poly = raw.map(m => {
-        // Already mapped by /api/markets
-        if (m.yesProb != null) return m;
-        // Raw from Polymarket
+      poly = raw.map ? raw.map(item => {
+        // Already mapped by /api/markets (has .url field)
+        if (item.url) return item;
+
+        // Raw event from /events — extract markets
+        if (item.markets) {
+          return null; // handle below
+        }
+
+        // Raw market object
+        const m = item;
         let prices = []; try { prices = JSON.parse(m.outcomePrices||'[]'); } catch {}
         const yesProb = parseFloat(prices[0]) || 0.5;
         if (yesProb < 0.02 || yesProb > 0.98) return null;
         let outcomes = ['Yes','No']; try { outcomes = JSON.parse(m.outcomes||'["Yes","No"]'); } catch {}
         let clobTokenId = null; try { const t=JSON.parse(m.clobTokenIds||'[]'); clobTokenId=t[0]||null; } catch {}
+        const mSlug = m.slug || '';
+        const eSlug = m.eventSlug || '';
         return {
-          id: m.id, slug: m.slug||'', question: m.question||'',
-          outcomes, yesProb: Math.round(yesProb*1000)/1000,
-          volume: parseFloat(m.volume)||0, endDate: m.endDate||null,
-          createdAt: m.createdAt||null, clobTokenId, tags: m.tags||[],
+          id: m.id, slug: mSlug, eventSlug: eSlug,
+          question: m.question||'', outcomes,
+          yesProb: Math.round(yesProb*1000)/1000,
+          volume: parseFloat(m.volume)||0,
+          endDate: m.endDate||null, createdAt: m.createdAt||null,
+          clobTokenId, tags: m.tags||[],
+          url: eSlug && mSlug
+            ? `https://polymarket.com/event/${eSlug}/${mSlug}`
+            : eSlug ? `https://polymarket.com/event/${eSlug}`
+            : `https://polymarket.com/market/${mSlug}`,
         };
-      }).filter(Boolean);
+      }).filter(Boolean) : [];
 
       if (poly.length) {
         setSrc('srcPoly','ok',`Polymarket: ${poly.length} маркетов ✓`);
@@ -468,23 +483,37 @@ function buildEv(m) {
     vol: m.volume || 0,
     volS: fmtVol(m.volume || 0),
     end: m.endDate ? new Date(m.endDate).toLocaleDateString('ru-RU',{day:'numeric',month:'short'}) : '—',
-    url: `https://polymarket.com/event/${m.slug || ''}`,
+    // Use URL from API if available (correct event/market slug), else fallback
+    url: m.url || (m.eventSlug && m.slug
+      ? `https://polymarket.com/event/${m.eventSlug}/${m.slug}`
+      : m.eventSlug
+        ? `https://polymarket.com/event/${m.eventSlug}`
+        : `https://polymarket.com/market/${m.slug || ''}`),
   };
 }
 
-// Build reliable Kalshi URL from event_ticker
-// Format: https://kalshi.com/markets/{series_ticker_lowercase}
-// Series ticker = everything before the first dash-number pattern
+// Build working Kalshi URL
+// Format: https://kalshi.com/markets/{event_ticker_lowercase}
+// This opens the event page where the market is visible
 function kalshiUrl(km) {
   if (!km) return null;
-  // Use event_ticker to build URL — format is SERIES-DATE-DETAILS
-  // The series part is the uppercase prefix like KXNBAGAME, KXHIGHNY etc.
-  const et = km.event_ticker || km.ticker || '';
-  if (!et) return 'https://kalshi.com/markets';
-  // Extract series ticker (everything before the first -YYMM or -26 pattern)
-  const seriesMatch = et.match(/^([A-Z]+(?:\d+[A-Z]+)*)/);
-  const series = seriesMatch ? seriesMatch[1].toLowerCase() : et.toLowerCase().split('-')[0];
-  return `https://kalshi.com/markets/${series}`;
+  // event_ticker is the reliable key — it's the parent event page
+  // e.g. KXNBAGAME-26APR06NYKATL → https://kalshi.com/markets/kxnbagame-26apr06nykatl
+  if (km.event_ticker) {
+    return `https://kalshi.com/markets/${km.event_ticker.toLowerCase()}`;
+  }
+  // Fallback to ticker (market level)
+  if (km.ticker) {
+    // Remove the last segment (outcome) to get to the event page
+    // e.g. KXNBAGAME-26APR06NYKATL-NYK → KXNBAGAME-26APR06NYKATL
+    const parts = km.ticker.split('-');
+    // Kalshi event tickers usually have 2 segments (SERIES-DATE), market tickers have 3
+    const eventTicker = parts.length >= 3
+      ? parts.slice(0, -1).join('-')
+      : km.ticker;
+    return `https://kalshi.com/markets/${eventTicker.toLowerCase()}`;
+  }
+  return 'https://kalshi.com';
 }
 function norm(t){ return (t||'').toLowerCase().replace(/[^a-z0-9 ]/g,' ').replace(/\s+/g,' ').trim(); }
 const STOP = new Set(['will','the','a','an','in','on','at','to','of','for','be','is','are','was','by','or','and','that','this','with','have','not','its','per']);

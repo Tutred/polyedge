@@ -95,6 +95,10 @@ main{max-width:1440px;margin:0 auto;padding:20px 28px 80px}
 .emeta{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:4px}
 .cat-tag{font-family:var(--mono);font-size:8px;text-transform:uppercase;letter-spacing:1px;padding:1px 7px;border-radius:2px;background:rgba(255,255,255,.05);color:var(--muted2);border:1px solid var(--border)}
 .vol-tag{font-family:var(--mono);font-size:8px;color:var(--muted)}
+.qlink{font-family:var(--mono);font-size:9px;text-decoration:none;padding:1px 8px;border-radius:2px;border:1px solid;transition:opacity .15s;white-space:nowrap}
+.qlink:hover{opacity:1 !important}
+.qlink-poly{color:var(--poly);border-color:rgba(0,194,255,.25);opacity:.7}
+.qlink-kal {color:var(--kalshi);border-color:rgba(155,108,255,.25);opacity:.7}
 
 /* price cell — always shows YES% and NO% */
 .pc{display:flex;flex-direction:column;gap:0}
@@ -191,6 +195,7 @@ main{max-width:1440px;margin:0 auto;padding:20px 28px 80px}
   <div class="hright">
     <div class="live"><div class="live-dot"></div>Live</div>
     <button class="rbtn" onclick="manualRefresh()">↻ Обновить</button>
+    <button class="rbtn" onclick="openDebug()" title="Проверить Kalshi API">🔧</button>
   </div>
 </header>
 
@@ -279,17 +284,21 @@ async function loadAll() {
   setText('loadTxt', 'Загрузка Kalshi...');
   kalMap = {};
   try {
-    const r = await fetch('/api/kalshi', { signal: AbortSignal.timeout(12000) });
+    const r = await fetch('/api/kalshi', { signal: AbortSignal.timeout(15000) });
     const j = await r.json();
     if (j.ok && j.markets?.length) {
       j.markets.forEach(km => {
         kalMap[norm(km.title)] = km;
         if (km.ticker) kalMap[km.ticker.toLowerCase()] = km;
       });
-      setSrc('srcKalshi','ok',`Kalshi: ${j.markets.length} маркетов ✓ (из ${j.total_raw} всего)`);
-    } else throw new Error(j.error || 'пустой ответ');
+      setSrc('srcKalshi','ok',`Kalshi: ${j.markets.length} маркетов ✓ (всего в API: ${j.total_raw})`);
+    } else {
+      const errMsg = j.error || (j.total_raw === 0 ? 'API вернул 0 маркетов' : 'пустой ответ');
+      throw new Error(errMsg);
+    }
   } catch(e) {
-    setSrc('srcKalshi','err',`Kalshi: ${e.message}`);
+    console.error('[Kalshi load error]', e.message);
+    setSrc('srcKalshi','err',`Kalshi: ${e.message} — нажми 🔧 для диагностики`);
   }
 
   setSrc('srcBook','wait','Букмекеры: нет данных');
@@ -445,6 +454,8 @@ function makeCard(ev, i) {
         <div class="emeta">
           <span class="cat-tag">${ev.cat}</span>
           <span class="vol-tag">VOL: ${ev.volS} · до ${ev.end}</span>
+          <a class="qlink qlink-poly" href="${ev.url}" target="_blank" onclick="event.stopPropagation()">↗ Polymarket</a>
+          ${ev.kal?.url ? `<a class="qlink qlink-kal" href="${ev.kal.url}" target="_blank" onclick="event.stopPropagation()">↗ Kalshi</a>` : ''}
         </div>
       </div>
       ${polyCell}${kalCell}${bookCell}${spread}
@@ -581,20 +592,40 @@ function startTimer() {
 async function silentRefresh(){
   try{
     const[pd,kd]=await Promise.allSettled([
-      fetch('/api/markets',{signal:AbortSignal.timeout(8000)}).then(r=>r.json()),
-      fetch('/api/kalshi', {signal:AbortSignal.timeout(10000)}).then(r=>r.json()),
+      fetch('/api/markets',{signal:AbortSignal.timeout(9000)}).then(r=>r.json()),
+      fetch('/api/kalshi', {signal:AbortSignal.timeout(13000)}).then(r=>r.json()),
     ]);
-    if(pd.status==='fulfilled'&&pd.value.ok){
-      kalMap={};
-      if(kd.status==='fulfilled'&&kd.value.ok){
-        kd.value.markets.forEach(km=>{kalMap[norm(km.title)]=km;if(km.ticker)kalMap[km.ticker.toLowerCase()]=km;});
+
+    // Only update Polymarket data if successful
+    if(pd.status==='fulfilled' && pd.value.ok && pd.value.markets?.length){
+
+      // IMPORTANT: only reset kalMap if Kalshi actually returned data
+      // Otherwise keep old kalMap so we don't lose matches
+      if(kd.status==='fulfilled' && kd.value.ok && kd.value.markets?.length){
+        kalMap={};
+        kd.value.markets.forEach(km=>{
+          kalMap[norm(km.title)]=km;
+          if(km.ticker) kalMap[km.ticker.toLowerCase()]=km;
+        });
+        setSrc('srcKalshi','ok',`Kalshi: ${kd.value.markets.length} маркетов ✓`);
+      } else if(kd.status==='rejected' || !kd.value?.ok){
+        // Keep old kalMap — don't wipe it!
+        setSrc('srcKalshi','err',`Kalshi: ошибка (старые данные сохранены)`);
       }
+
       const ne=pd.value.markets.map(buildEv).filter(Boolean);
-      if(ne.length){events=ne;render();setText('updR',`Обновлено ${new Date().toLocaleTimeString('ru-RU')} · обновление: `);}
+      if(ne.length){
+        events=ne;
+        render();
+        setText('updR',`Обновлено ${new Date().toLocaleTimeString('ru-RU')} · обновление: `);
+      }
     }
-  }catch(e){console.warn('Refresh failed',e);}
+  }catch(e){ console.warn('Refresh failed',e); }
 }
-function manualRefresh(){cd=REFRESH;loadAll();}
+function manualRefresh(){ cd=REFRESH; loadAll(); }
+
+// Debug — открой /api/debug в браузере для диагностики
+function openDebug(){ window.open('/api/debug','_blank'); }
 
 // ════════════════════════════════
 // HELPERS

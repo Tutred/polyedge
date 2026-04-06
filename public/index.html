@@ -320,30 +320,55 @@ function buildEv(m) {
 
   const km = findKalshi(m.question);
 
-  const py = p,          pn = 1 - p;
-  const ky = km?.yesProb ?? null;
-  const kn = ky != null ? 1 - ky : null;
+  const py = p;          // Polymarket: prob of YES outcome
+  const pn = 1 - p;      // Polymarket: prob of NO outcome
+  const ky = km?.yesProb ?? null;   // Kalshi: prob of YES outcome
+  const kn = ky != null ? 1 - ky : null; // Kalshi: prob of NO outcome
 
-  // Calc arbitrage
   let arb = null;
   if (ky != null) {
-    const s1 = py + kn;  // buy Poly YES + Kalshi NO
-    const s2 = ky + pn;  // buy Kalshi YES + Poly NO
-    const best = Math.min(s1, s2);
+    // CORRECT arbitrage logic:
+    // Assuming Polymarket YES and Kalshi YES refer to the SAME real-world outcome,
+    // a proper hedge requires betting OPPOSITE sides across platforms:
+    //
+    // Strategy A: Buy YES on Polymarket + Buy NO on Kalshi (= bet YES on Poly, NO on Kalshi)
+    //   → wins if event happens (Poly YES pays) OR doesn't happen (Kalshi NO pays)
+    //   → cost = py + kn, payout = 1.00 guaranteed
+    //   → profit only if py + kn < 1.00
+    //
+    // Strategy B: Buy NO on Polymarket + Buy YES on Kalshi
+    //   → cost = pn + ky, payout = 1.00 guaranteed
+    //   → profit only if pn + ky < 1.00
 
-    if (best < 0.985) {
-      const useS1 = s1 <= s2;
+    const costA = py + kn;  // Poly YES + Kalshi NO
+    const costB = pn + ky;  // Poly NO  + Kalshi YES
+
+    // IMPORTANT: both costA and costB must be < 1.00 to be real arbitrage
+    // Also both legs must have real prices (>1¢)
+    const isArbA = costA < 0.985 && py >= 0.02 && kn >= 0.02;
+    const isArbB = costB < 0.985 && pn >= 0.02 && ky >= 0.02;
+
+    if (isArbA || isArbB) {
+      // Pick the better strategy
+      const useA = isArbA && (!isArbB || costA <= costB);
+      const cost   = useA ? costA : costB;
+      const profit = 1 - cost;
+      const roi    = (profit / cost) * 100;
+
       arb = {
         type: 'arb',
-        cost: useS1 ? s1 : s2,
-        profit: 1 - (useS1 ? s1 : s2),
-        roi: ((1 - (useS1 ? s1 : s2)) / (useS1 ? s1 : s2)) * 100,
-        polyBuy: useS1 ? 'YES' : 'NO',
-        kalBuy:  useS1 ? 'NO'  : 'YES',
-        polyPrice: useS1 ? py : pn,
-        kalPrice:  useS1 ? kn : ky,
+        cost, profit, roi,
+        // Which side to buy on each platform
+        polyBuy:   useA ? 'YES' : 'NO',
+        kalBuy:    useA ? 'NO'  : 'YES',
+        polyPrice: useA ? py   : pn,
+        kalPrice:  useA ? kn   : ky,
+        // Human readable outcome names
+        polyOutcome: useA ? m.outcomes?.[0]||'Да' : m.outcomes?.[1]||'Нет',
+        kalOutcome:  useA ? (km.no_sub_title||m.outcomes?.[1]||'Нет') : (km.yes_sub_title||m.outcomes?.[0]||'Да'),
       };
     } else {
+      // No arbitrage — just show price difference if significant
       const diff = Math.abs(py - ky);
       if (diff >= 0.03) {
         arb = {
@@ -455,7 +480,7 @@ function makeCard(ev, i) {
           <span class="cat-tag">${ev.cat}</span>
           <span class="vol-tag">VOL: ${ev.volS} · до ${ev.end}</span>
           <a class="qlink qlink-poly" href="${ev.url}" target="_blank" onclick="event.stopPropagation()">↗ Polymarket</a>
-          ${ev.kal?.url ? `<a class="qlink qlink-kal" href="${ev.kal.url}" target="_blank" onclick="event.stopPropagation()">↗ Kalshi</a>` : ''}
+          ${ev.kal ? `<a class="qlink qlink-kal" href="${ev.kal.event_ticker ? `https://kalshi.com/markets/${ev.kal.event_ticker.toLowerCase()}` : ev.kal.url || '#'}" target="_blank" onclick="event.stopPropagation()">↗ Kalshi</a>` : ''}
         </div>
       </div>
       ${polyCell}${kalCell}${bookCell}${spread}
@@ -484,14 +509,22 @@ function buildDetail(ev) {
   const isArb  = ev.arb?.type==='arb';
   const isDiff = ev.arb?.type==='diff';
 
+  // Correct Kalshi URL — use event_ticker for event page
+  const kalUrl = ev.kal?.url || (ev.kal?.event_ticker
+    ? `https://kalshi.com/markets/${ev.kal.event_ticker.toLowerCase()}`
+    : null);
+
   let explain = '';
   if (isArb) {
+    const polyOutcome = ev.arb.polyBuy === 'YES' ? ev.yL : ev.nL;
+    const kalOutcome  = ev.arb.kalBuy  === 'YES' ? ev.yL : ev.nL;
     explain = `<div class="explain arb">
-      🟢 <strong>Арбитраж!</strong>
-      Купи <strong>${ev.arb.polyBuy === 'YES' ? ev.yL : ev.nL}</strong> на Polymarket (${pct(ev.arb.polyPrice)})
-      + <strong>${ev.arb.kalBuy === 'YES' ? ev.yL : ev.nL}</strong> на Kalshi (${pct(ev.arb.kalPrice)}).
-      Сумма: <strong>${(ev.arb.cost*100).toFixed(1)}¢</strong> — выплата всегда <strong>100¢</strong>.
-      Прибыль: <strong>+${(ev.arb.profit*100).toFixed(1)}¢ (${ev.arb.roi.toFixed(2)}% ROI)</strong> гарантирована.
+      🟢 <strong>Арбитраж!</strong><br>
+      Купи <strong>«${polyOutcome}»</strong> на Polymarket за <strong>${pct(ev.arb.polyPrice)}</strong><br>
+      + купи <strong>«${kalOutcome}»</strong> на Kalshi за <strong>${pct(ev.arb.kalPrice)}</strong><br>
+      Итого: <strong>${(ev.arb.cost*100).toFixed(1)}¢</strong>.
+      Один из исходов всегда выплатит <strong>100¢</strong> — это противоположные стороны.<br>
+      Гарантированная прибыль: <strong>+${(ev.arb.profit*100).toFixed(1)}¢ (${ev.arb.roi.toFixed(2)}% ROI)</strong>
     </div>`;
   } else if (isDiff) {
     explain = `<div class="explain diff">
@@ -549,7 +582,7 @@ function buildDetail(ev) {
 
   const links = `<div class="dlinks">
     <a href="${ev.url}" target="_blank" class="dlink poly">↗ Polymarket</a>
-    ${ev.kal?.url ? `<a href="${ev.kal.url}" target="_blank" class="dlink kalshi">↗ Kalshi</a>` : ''}
+    ${kalUrl ? `<a href="${kalUrl}" target="_blank" class="dlink kalshi">↗ Kalshi</a>` : ''}
   </div>`;
 
   return explain + boxes + links;

@@ -371,7 +371,7 @@ async function loadAll() {
           title: m.title||m.ticker,
           yes_sub_title: m.yes_sub_title||null, no_sub_title: m.no_sub_title||null,
           yesProb, volume: parseFloat(m.volume_fp||'0')||0,
-          url: `https://kalshi.com/markets/${(m.event_ticker||m.ticker).toLowerCase()}`,
+          url: `https://kalshi.com/markets/${(m.series_ticker||m.event_ticker||m.ticker||'').toLowerCase()}/${(m.event_ticker||m.ticker||'').toLowerCase()}`,
         };
       });
 
@@ -410,109 +410,81 @@ function buildEv(m) {
 
   const km = findKalshi(m.question);
 
-  const py = p;          // Polymarket: prob of YES outcome
-  const pn = 1 - p;      // Polymarket: prob of NO outcome
-  const ky = km?.yesProb ?? null;   // Kalshi: prob of YES outcome
-  const kn = ky != null ? 1 - ky : null; // Kalshi: prob of NO outcome
+  const py = p;
+  const pn = 1 - p;
+  const ky = km?.yesProb ?? null;
+  const kn = ky != null ? 1 - ky : null;
 
   let arb = null;
   if (ky != null) {
-    // CORRECT arbitrage logic:
-    // Assuming Polymarket YES and Kalshi YES refer to the SAME real-world outcome,
-    // a proper hedge requires betting OPPOSITE sides across platforms:
-    //
-    // Strategy A: Buy YES on Polymarket + Buy NO on Kalshi (= bet YES on Poly, NO on Kalshi)
-    //   → wins if event happens (Poly YES pays) OR doesn't happen (Kalshi NO pays)
-    //   → cost = py + kn, payout = 1.00 guaranteed
-    //   → profit only if py + kn < 1.00
-    //
-    // Strategy B: Buy NO on Polymarket + Buy YES on Kalshi
-    //   → cost = pn + ky, payout = 1.00 guaranteed
-    //   → profit only if pn + ky < 1.00
+    // KEY CHECK: if py + ky ≈ 1.0, the match is INVERTED (they track opposite outcomes)
+    // Example: Poly YES=97%, Kalshi YES=2% → 97+2=99% → INVERTED → bad match, no arb
+    // Valid match: Poly YES=60%, Kalshi YES=65% → 60+65=125% → same direction ✓
+    const sumYY = py + ky;
+    const inverted = sumYY > 0.9 && sumYY < 1.1; // sum near 100% = inverted
 
-    const costA = py + kn;  // Poly YES + Kalshi NO
-    const costB = pn + ky;  // Poly NO  + Kalshi YES
+    if (!inverted) {
+      const costA = py + kn;  // Poly YES + Kalshi NO
+      const costB = pn + ky;  // Poly NO  + Kalshi YES
 
-    // IMPORTANT: both costA and costB must be < 1.00 to be real arbitrage
-    // Also both legs must have real prices (>1¢)
-    const isArbA = costA < 0.985 && py >= 0.02 && kn >= 0.02;
-    const isArbB = costB < 0.985 && pn >= 0.02 && ky >= 0.02;
+      const isArbA = costA < 0.985 && py >= 0.02 && kn >= 0.02;
+      const isArbB = costB < 0.985 && pn >= 0.02 && ky >= 0.02;
 
-    if (isArbA || isArbB) {
-      // Pick the better strategy
-      const useA = isArbA && (!isArbB || costA <= costB);
-      const cost   = useA ? costA : costB;
-      const profit = 1 - cost;
-      const roi    = (profit / cost) * 100;
+      // Cap ROI at 25% — anything higher is almost certainly a bad keyword match
+      const roiA = isArbA ? ((1 - costA) / costA) * 100 : 0;
+      const roiB = isArbB ? ((1 - costB) / costB) * 100 : 0;
 
-      arb = {
-        type: 'arb',
-        cost, profit, roi,
-        // Which side to buy on each platform
-        polyBuy:   useA ? 'YES' : 'NO',
-        kalBuy:    useA ? 'NO'  : 'YES',
-        polyPrice: useA ? py   : pn,
-        kalPrice:  useA ? kn   : ky,
-        // Human readable outcome names
-        polyOutcome: useA ? m.outcomes?.[0]||'Да' : m.outcomes?.[1]||'Нет',
-        kalOutcome:  useA ? (km.no_sub_title||m.outcomes?.[1]||'Нет') : (km.yes_sub_title||m.outcomes?.[0]||'Да'),
-      };
-    } else {
-      // No arbitrage — just show price difference if significant
-      const diff = Math.abs(py - ky);
-      if (diff >= 0.03) {
+      const validA = isArbA && roiA <= 25;
+      const validB = isArbB && roiB <= 25;
+
+      if (validA || validB) {
+        const useA  = validA && (!validB || costA <= costB);
+        const cost  = useA ? costA : costB;
         arb = {
-          type: 'diff',
-          diff,
-          higher: py > ky ? 'Polymarket' : 'Kalshi',
-          lower:  py > ky ? 'Kalshi' : 'Polymarket',
+          type: 'arb',
+          cost, profit: 1 - cost, roi: ((1 - cost) / cost) * 100,
+          polyBuy:     useA ? 'YES' : 'NO',
+          kalBuy:      useA ? 'NO'  : 'YES',
+          polyPrice:   useA ? py : pn,
+          kalPrice:    useA ? kn : ky,
+          polyOutcome: useA ? m.outcomes?.[0]||'Да' : m.outcomes?.[1]||'Нет',
+          kalOutcome:  useA ? (km.no_sub_title||m.outcomes?.[1]||'Нет') : (km.yes_sub_title||m.outcomes?.[0]||'Да'),
         };
+      } else {
+        const diff = Math.abs(py - ky);
+        if (diff >= 0.03) {
+          arb = { type:'diff', diff,
+            higher: py > ky ? 'Polymarket' : 'Kalshi',
+            lower:  py > ky ? 'Kalshi' : 'Polymarket',
+          };
+        }
       }
     }
   }
 
   return {
-    id: m.id,
-    q: m.question,
+    id: m.id, q: m.question,
     yL: m.outcomes?.[0] || 'Да',
     nL: m.outcomes?.[1] || 'Нет',
     cat: guessCat(m.question, m.tags),
-    py, pn, ky, kn,
-    kal: km,
-    arb,
-    vol: m.volume || 0,
-    volS: fmtVol(m.volume || 0),
+    py, pn, ky, kn, kal: km, arb,
+    vol: m.volume || 0, volS: fmtVol(m.volume || 0),
     end: m.endDate ? new Date(m.endDate).toLocaleDateString('ru-RU',{day:'numeric',month:'short'}) : '—',
-    // Use URL from API if available (correct event/market slug), else fallback
     url: m.url || (m.eventSlug && m.slug
       ? `https://polymarket.com/event/${m.eventSlug}/${m.slug}`
-      : m.eventSlug
-        ? `https://polymarket.com/event/${m.eventSlug}`
-        : `https://polymarket.com/market/${m.slug || ''}`),
+      : m.eventSlug ? `https://polymarket.com/event/${m.eventSlug}`
+      : `https://polymarket.com/market/${m.slug||''}`),
   };
 }
 
-// Build working Kalshi URL
-// Format: https://kalshi.com/markets/{event_ticker_lowercase}
-// This opens the event page where the market is visible
+// Kalshi URL: https://kalshi.com/markets/{series}/{event_ticker}
+// Found from search: e.g. https://kalshi.com/markets/kxnbagame/kxnbagame-26apr06nykatl
 function kalshiUrl(km) {
   if (!km) return null;
-  // event_ticker is the reliable key — it's the parent event page
-  // e.g. KXNBAGAME-26APR06NYKATL → https://kalshi.com/markets/kxnbagame-26apr06nykatl
-  if (km.event_ticker) {
-    return `https://kalshi.com/markets/${km.event_ticker.toLowerCase()}`;
-  }
-  // Fallback to ticker (market level)
-  if (km.ticker) {
-    // Remove the last segment (outcome) to get to the event page
-    // e.g. KXNBAGAME-26APR06NYKATL-NYK → KXNBAGAME-26APR06NYKATL
-    const parts = km.ticker.split('-');
-    // Kalshi event tickers usually have 2 segments (SERIES-DATE), market tickers have 3
-    const eventTicker = parts.length >= 3
-      ? parts.slice(0, -1).join('-')
-      : km.ticker;
-    return `https://kalshi.com/markets/${eventTicker.toLowerCase()}`;
-  }
+  const et = (km.event_ticker || km.ticker || '').toLowerCase();
+  const st = (km.series_ticker || et.split('-')[0] || '').toLowerCase();
+  if (st && et) return `https://kalshi.com/markets/${st}/${et}`;
+  if (et)       return `https://kalshi.com/markets/${et}`;
   return 'https://kalshi.com';
 }
 function norm(t){ return (t||'').toLowerCase().replace(/[^a-z0-9 ]/g,' ').replace(/\s+/g,' ').trim(); }

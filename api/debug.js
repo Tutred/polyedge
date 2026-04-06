@@ -1,46 +1,55 @@
-// api/debug.js — показывает реальный маркет Kalshi с ценой и URL поля
+// api/debug.js — тестирует разные endpoints Kalshi
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Content-Type', 'application/json');
 
+  const BASE = 'https://api.elections.kalshi.com/trade-api/v2';
+  const results = {};
+
+  // Test 1: markets без фильтров
   try {
-    const r = await fetch(
-      'https://api.elections.kalshi.com/trade-api/v2/markets?limit=200&status=active&multivariate_markets=exclude',
-      { headers: { 'Accept': 'application/json' }, signal: AbortSignal.timeout(12000) }
-    );
+    const r = await fetch(`${BASE}/markets?limit=10`, { signal: AbortSignal.timeout(8000) });
     const j = await r.json();
-    const markets = j.markets || [];
+    results.markets_no_filter = {
+      status: r.status, count: j.markets?.length, cursor: j.cursor?.slice(0,20),
+      first: j.markets?.[0] ? { ticker: j.markets[0].ticker, title: j.markets[0].title, yes_bid: j.markets[0].yes_bid_dollars, status: j.markets[0].status, mve: !!j.markets[0].mve_collection_ticker } : null
+    };
+  } catch(e) { results.markets_no_filter = { error: e.message }; }
 
-    // Find first market with real price
-    const real = markets.filter(m => {
-      const b = parseFloat(m.yes_bid_dollars || '0');
-      const a = parseFloat(m.yes_ask_dollars || '0');
-      const l = parseFloat(m.last_price_dollars || '0');
-      return Math.max(b, a, l) >= 0.05 && Math.max(b, a, l) <= 0.95;
-    });
+  // Test 2: markets status=open (не active)
+  try {
+    const r = await fetch(`${BASE}/markets?limit=10&status=open`, { signal: AbortSignal.timeout(8000) });
+    const j = await r.json();
+    results.markets_status_open = {
+      status: r.status, count: j.markets?.length,
+      first: j.markets?.[0] ? { ticker: j.markets[0].ticker, title: j.markets[0].title, yes_bid: j.markets[0].yes_bid_dollars, status: j.markets[0].status } : null
+    };
+  } catch(e) { results.markets_status_open = { error: e.message }; }
 
-    // Return first 3 real markets with ALL fields for URL inspection
-    const sample = real.slice(0, 3).map(m => ({
-      ticker:        m.ticker,
-      event_ticker:  m.event_ticker,
-      series_ticker: m.series_ticker,
-      title:         m.title,
-      yes_bid:       m.yes_bid_dollars,
-      yes_ask:       m.yes_ask_dollars,
-      last_price:    m.last_price_dollars,
-      // URL candidates
-      url_v1: `https://kalshi.com/markets/${(m.series_ticker||'').toLowerCase()}/${(m.event_ticker||'').toLowerCase()}`,
-      url_v2: `https://kalshi.com/markets/${(m.event_ticker||'').toLowerCase()}`,
-      url_v3: `https://kalshi.com/markets/${(m.ticker||'').toLowerCase()}`,
-    }));
+  // Test 3: events endpoint
+  try {
+    const r = await fetch(`${BASE}/events?limit=5&status=open&with_nested_markets=true`, { signal: AbortSignal.timeout(8000) });
+    const j = await r.json();
+    const first_event = j.events?.[0];
+    const first_market = first_event?.markets?.[0];
+    results.events = {
+      status: r.status, event_count: j.events?.length,
+      first_event: first_event ? { ticker: first_event.event_ticker, title: first_event.title, series: first_event.series_ticker, market_count: first_event.markets?.length } : null,
+      first_market: first_market ? { ticker: first_market.ticker, yes_bid: first_market.yes_bid_dollars, yes_ask: first_market.yes_ask_dollars, last: first_market.last_price_dollars,
+        url_try: `https://kalshi.com/markets/${(first_event?.series_ticker||'').toLowerCase()}/${(first_event?.event_ticker||'').toLowerCase()}`
+      } : null
+    };
+  } catch(e) { results.events = { error: e.message }; }
 
-    res.status(200).json({
-      total: markets.length,
-      real_count: real.length,
-      sample,
-      ts: new Date().toISOString()
-    });
-  } catch(e) {
-    res.status(500).json({ error: e.message });
-  }
+  // Test 4: multivariate=exclude
+  try {
+    const r = await fetch(`${BASE}/markets?limit=10&multivariate_markets=exclude`, { signal: AbortSignal.timeout(8000) });
+    const j = await r.json();
+    results.markets_excl_mve = {
+      status: r.status, count: j.markets?.length,
+      first: j.markets?.[0] ? { ticker: j.markets[0].ticker, title: j.markets[0].title, yes_bid: j.markets[0].yes_bid_dollars } : null
+    };
+  } catch(e) { results.markets_excl_mve = { error: e.message }; }
+
+  res.status(200).json({ results, ts: new Date().toISOString() });
 }

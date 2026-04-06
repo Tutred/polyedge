@@ -472,9 +472,20 @@ function buildEv(m) {
   };
 }
 
-// ════════════════════════════════
-// KALSHI MATCHING
-// ════════════════════════════════
+// Build reliable Kalshi URL from event_ticker
+// Format: https://kalshi.com/markets/{series_ticker_lowercase}
+// Series ticker = everything before the first dash-number pattern
+function kalshiUrl(km) {
+  if (!km) return null;
+  // Use event_ticker to build URL — format is SERIES-DATE-DETAILS
+  // The series part is the uppercase prefix like KXNBAGAME, KXHIGHNY etc.
+  const et = km.event_ticker || km.ticker || '';
+  if (!et) return 'https://kalshi.com/markets';
+  // Extract series ticker (everything before the first -YYMM or -26 pattern)
+  const seriesMatch = et.match(/^([A-Z]+(?:\d+[A-Z]+)*)/);
+  const series = seriesMatch ? seriesMatch[1].toLowerCase() : et.toLowerCase().split('-')[0];
+  return `https://kalshi.com/markets/${series}`;
+}
 function norm(t){ return (t||'').toLowerCase().replace(/[^a-z0-9 ]/g,' ').replace(/\s+/g,' ').trim(); }
 const STOP = new Set(['will','the','a','an','in','on','at','to','of','for','be','is','are','was','by','or','and','that','this','with','have','not','its','per']);
 function kws(t){ return norm(t).split(' ').filter(w=>w.length>2&&!STOP.has(w)); }
@@ -555,7 +566,7 @@ function makeCard(ev, i) {
           <span class="cat-tag">${ev.cat}</span>
           <span class="vol-tag">VOL: ${ev.volS} · до ${ev.end}</span>
           <a class="qlink qlink-poly" href="${ev.url}" target="_blank" onclick="event.stopPropagation()">↗ Polymarket</a>
-          ${ev.kal ? `<a class="qlink qlink-kal" href="${ev.kal.event_ticker ? `https://kalshi.com/markets/${ev.kal.event_ticker.toLowerCase()}` : ev.kal.url || '#'}" target="_blank" onclick="event.stopPropagation()">↗ Kalshi</a>` : ''}
+          ${ev.kal ? `<a class="qlink qlink-kal" href="${kalshiUrl(ev.kal)}" target="_blank" onclick="event.stopPropagation()">↗ Kalshi</a>` : ''}
         </div>
       </div>
       ${polyCell}${kalCell}${bookCell}${spread}
@@ -584,10 +595,8 @@ function buildDetail(ev) {
   const isArb  = ev.arb?.type==='arb';
   const isDiff = ev.arb?.type==='diff';
 
-  // Correct Kalshi URL — use event_ticker for event page
-  const kalUrl = ev.kal?.url || (ev.kal?.event_ticker
-    ? `https://kalshi.com/markets/${ev.kal.event_ticker.toLowerCase()}`
-    : null);
+  // Correct Kalshi URL using series ticker
+  const kalUrl = kalshiUrl(ev.kal);
 
   let explain = '';
   if (isArb) {

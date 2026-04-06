@@ -8,219 +8,172 @@
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap');
 
 :root {
-  --bg:      #0a0d12;
-  --card:    #0f1420;
-  --card2:   #141b27;
-  --border:  #1e2d3d;
-  --border2: #263545;
-  --poly:    #00c2ff;
-  --kalshi:  #9b6cff;
-  --book:    #60a5fa;
-  --green:   #22c55e;
-  --red:     #ef4444;
-  --yellow:  #f59e0b;
-  --text:    #e2e8f0;
-  --muted:   #475569;
-  --muted2:  #64748b;
-  --mono:    'IBM Plex Mono', monospace;
-  --sans:    'Inter', sans-serif;
+  --bg:     #0a0d12;
+  --card:   #0f1420;
+  --card2:  #141b27;
+  --border: #1e2d3d;
+  --bord2:  #263545;
+  --poly:   #00c2ff;
+  --kalshi: #9b6cff;
+  --book:   #60a5fa;
+  --green:  #22c55e;
+  --red:    #ef4444;
+  --yellow: #f59e0b;
+  --text:   #e2e8f0;
+  --muted:  #475569;
+  --muted2: #64748b;
+  --mono:   'IBM Plex Mono', monospace;
+  --sans:   'Inter', sans-serif;
 }
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:100vh}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--bord2);border-radius:3px}
 
-* { box-sizing: border-box; margin: 0; padding: 0; }
-html { scroll-behavior: smooth; }
-body { font-family: var(--sans); background: var(--bg); color: var(--text); min-height: 100vh; }
+/* ── HEADER ── */
+header{position:sticky;top:0;z-index:100;background:rgba(10,13,18,.97);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 28px;height:56px;gap:16px}
+.logo{font-family:var(--mono);font-size:17px;font-weight:700;letter-spacing:-.5px;white-space:nowrap}
+.logo span{color:var(--poly)}
+.logo small{font-size:10px;color:var(--muted2);font-weight:400;margin-left:8px;letter-spacing:0}
+.hstats{display:flex;gap:20px}
+.hs{text-align:center}
+.hs-v{font-family:var(--mono);font-size:15px;font-weight:700}
+.hs-l{font-size:9px;color:var(--muted2);text-transform:uppercase;letter-spacing:1px;margin-top:1px}
+.hright{display:flex;align-items:center;gap:8px}
+.live{display:flex;align-items:center;gap:5px;font-family:var(--mono);font-size:9px;color:var(--green);text-transform:uppercase;letter-spacing:2px;background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.2);padding:4px 11px;border-radius:20px}
+.live-dot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:pulse 1.5s infinite}
+@keyframes pulse{0%,100%{opacity:1;box-shadow:0 0 5px var(--green)}50%{opacity:.3;box-shadow:none}}
+.rbtn{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:1px;background:transparent;border:1px solid var(--border);color:var(--muted2);padding:5px 12px;border-radius:3px;cursor:pointer;transition:all .2s}
+.rbtn:hover{border-color:var(--poly);color:var(--poly)}
 
-/* ─── SCROLLBAR ─── */
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: var(--bg); }
-::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+/* ── STATUS ── */
+.sbar{background:var(--card);border-bottom:1px solid var(--border);padding:7px 28px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.src{font-family:var(--mono);font-size:10px;padding:3px 10px;border-radius:12px;display:flex;align-items:center;gap:5px}
+.src .sd{width:6px;height:6px;border-radius:50%}
+.s-ok  {background:rgba(34,197,94,.08); color:var(--green); border:1px solid rgba(34,197,94,.2)}
+.s-wait{background:rgba(245,158,11,.08);color:var(--yellow);border:1px solid rgba(245,158,11,.2)}
+.s-err {background:rgba(239,68,68,.08); color:var(--red);   border:1px solid rgba(239,68,68,.2)}
 
-/* ─── HEADER ─── */
-header {
-  position: sticky; top: 0; z-index: 100;
-  background: rgba(10,13,18,.97);
-  backdrop-filter: blur(20px);
-  border-bottom: 1px solid var(--border);
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 0 32px; height: 58px; gap: 20px;
-}
-.logo { font-family: var(--mono); font-size: 18px; font-weight: 700; letter-spacing: -.5px; white-space: nowrap; }
-.logo span { color: var(--poly); }
-.logo small { font-size: 11px; color: var(--muted2); font-weight: 400; margin-left: 8px; letter-spacing: 0; }
+/* ── FILTERS ── */
+.fbar{padding:12px 28px;display:flex;gap:7px;align-items:center;flex-wrap:wrap;border-bottom:1px solid var(--border)}
+.fbtn{font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:1px;background:transparent;border:1px solid var(--border);color:var(--muted2);padding:5px 12px;border-radius:3px;cursor:pointer;transition:all .15s;white-space:nowrap}
+.fbtn:hover{border-color:var(--bord2);color:var(--text)}
+.fbtn.fa {border-color:var(--poly);  color:var(--poly);  background:rgba(0,194,255,.07)}
+.fbtn.fg {border-color:var(--green); color:var(--green); background:rgba(34,197,94,.07)}
+.vsep{width:1px;height:18px;background:var(--border);margin:0 3px}
+.upd-r{font-family:var(--mono);font-size:9px;color:var(--muted);margin-left:auto;white-space:nowrap}
+.upd-n{color:var(--poly)}
+.sort-sel{font-family:var(--mono);font-size:10px;background:var(--card);border:1px solid var(--border);color:var(--text);padding:5px 10px;border-radius:3px;cursor:pointer;outline:none}
 
-.hcenter { display: flex; gap: 24px; align-items: center; }
-.hstat { text-align: center; }
-.hstat-v { font-family: var(--mono); font-size: 16px; font-weight: 700; }
-.hstat-l { font-size: 10px; color: var(--muted2); text-transform: uppercase; letter-spacing: 1px; margin-top: 1px; }
+/* ── MAIN ── */
+main{max-width:1440px;margin:0 auto;padding:20px 28px 80px}
+.screen{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:100px 0;gap:14px}
+.spinner{width:30px;height:30px;border:2px solid var(--bord2);border-top-color:var(--poly);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.scr-txt{font-family:var(--mono);font-size:10px;color:var(--muted2);text-transform:uppercase;letter-spacing:2px;text-align:center}
+.retry-btn{font-family:var(--mono);font-size:11px;background:transparent;border:1px solid var(--poly);color:var(--poly);padding:7px 18px;border-radius:3px;cursor:pointer;margin-top:6px}
 
-.hright { display: flex; align-items: center; gap: 10px; }
-.live { display: flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 10px; color: var(--green); text-transform: uppercase; letter-spacing: 2px; background: rgba(34,197,94,.08); border: 1px solid rgba(34,197,94,.2); padding: 4px 12px; border-radius: 20px; }
-.live-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); animation: pulse 1.5s infinite; }
-@keyframes pulse { 0%,100%{opacity:1;box-shadow:0 0 5px var(--green)} 50%{opacity:.3;box-shadow:none} }
-.refresh-btn { font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: 1px; background: transparent; border: 1px solid var(--border2); color: var(--muted2); padding: 6px 14px; border-radius: 4px; cursor: pointer; transition: all .2s; }
-.refresh-btn:hover { border-color: var(--poly); color: var(--poly); }
+/* ── TABLE HEADER ── */
+.thead{display:grid;grid-template-columns:1fr 160px 160px 160px 120px;gap:6px;padding:7px 16px;font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);border-bottom:1px solid var(--border);margin-bottom:3px}
 
-/* ─── STATUS BAR ─── */
-.status-bar { background: var(--card); border-bottom: 1px solid var(--border); padding: 7px 32px; display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
-.src { font-family: var(--mono); font-size: 10px; padding: 3px 10px; border-radius: 12px; display: flex; align-items: center; gap: 5px; }
-.src .dot { width: 6px; height: 6px; border-radius: 50%; }
-.src-ok   { background: rgba(34,197,94,.08);  color: var(--green);  border: 1px solid rgba(34,197,94,.2); }
-.src-wait { background: rgba(245,158,11,.08); color: var(--yellow); border: 1px solid rgba(245,158,11,.2); }
-.src-err  { background: rgba(239,68,68,.08);  color: var(--red);    border: 1px solid rgba(239,68,68,.2); }
+/* ── CARD ── */
+.card{background:var(--card);border:1px solid var(--border);border-radius:5px;margin-bottom:7px;overflow:hidden;cursor:pointer;transition:border-color .2s;animation:fi .25s ease both}
+@keyframes fi{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.card:hover{border-color:var(--bord2)}
+.card.arb {border-left:3px solid var(--green)}
+.card.arb:hover{border-color:rgba(34,197,94,.4)}
+.card.diff{border-left:3px solid var(--yellow)}
+.card.diff:hover{border-color:rgba(245,158,11,.4)}
 
-/* ─── FILTERS ─── */
-.filters-bar { padding: 14px 32px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; border-bottom: 1px solid var(--border); }
-.filter-btn { font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: 1px; background: transparent; border: 1px solid var(--border); color: var(--muted2); padding: 5px 14px; border-radius: 3px; cursor: pointer; transition: all .15s; white-space: nowrap; }
-.filter-btn:hover { border-color: var(--border2); color: var(--text); }
-.filter-btn.act  { border-color: var(--poly);   color: var(--poly);   background: rgba(0,194,255,.07); }
-.filter-btn.act2 { border-color: var(--green);  color: var(--green);  background: rgba(34,197,94,.07); }
-.sep { width: 1px; height: 20px; background: var(--border); margin: 0 4px; }
-.upd-info { font-family: var(--mono); font-size: 10px; color: var(--muted); margin-left: auto; }
-.upd-next { color: var(--poly); }
+/* main row */
+.crow{display:grid;grid-template-columns:1fr 160px 160px 160px 120px;gap:6px;padding:13px 16px;align-items:center}
 
-/* ─── MAIN ─── */
-main { max-width: 1400px; margin: 0 auto; padding: 24px 32px 80px; }
+/* event title */
+.etitle{font-size:13px;font-weight:600;line-height:1.4;margin-bottom:4px}
+.emeta{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:4px}
+.cat-tag{font-family:var(--mono);font-size:8px;text-transform:uppercase;letter-spacing:1px;padding:1px 7px;border-radius:2px;background:rgba(255,255,255,.05);color:var(--muted2);border:1px solid var(--border)}
+.vol-tag{font-family:var(--mono);font-size:8px;color:var(--muted)}
 
-/* screens */
-.screen { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 100px 0; gap: 16px; }
-.spinner { width: 32px; height: 32px; border: 2px solid var(--border2); border-top-color: var(--poly); border-radius: 50%; animation: spin .7s linear infinite; }
-@keyframes spin { to { transform: rotate(360deg); } }
-.screen-txt { font-family: var(--mono); font-size: 11px; color: var(--muted2); text-transform: uppercase; letter-spacing: 2px; text-align: center; }
-.retry-btn { font-family: var(--mono); font-size: 11px; background: transparent; border: 1px solid var(--poly); color: var(--poly); padding: 8px 20px; border-radius: 3px; cursor: pointer; margin-top: 6px; }
-.no-data { text-align: center; padding: 60px 0; color: var(--muted); font-family: var(--mono); font-size: 13px; }
+/* price cell — always shows YES% and NO% */
+.pc{display:flex;flex-direction:column;gap:0}
+.pc-src{font-family:var(--mono);font-size:8px;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);margin-bottom:3px}
+.pc.poly   .pc-src{color:var(--poly)}
+.pc.kalshi .pc-src{color:var(--kalshi)}
+.pc.book   .pc-src{color:var(--book)}
 
-/* ─── TABLE HEADER ─── */
-.table-head {
-  display: grid;
-  grid-template-columns: 1fr 130px 130px 130px 130px 120px;
-  gap: 8px;
-  padding: 8px 16px;
-  font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted);
-  border-bottom: 1px solid var(--border);
-  margin-bottom: 4px;
-}
+/* YES row */
+.pc-yes{display:flex;align-items:baseline;gap:5px;margin-bottom:2px}
+.pc-yes-lbl{font-family:var(--mono);font-size:8px;font-weight:600;color:var(--green);text-transform:uppercase;min-width:22px}
+.pc-yes-val{font-family:var(--mono);font-size:18px;font-weight:700;line-height:1;color:var(--text)}
+.pc.poly   .pc-yes-val{color:var(--poly)}
+.pc.kalshi .pc-yes-val{color:var(--kalshi)}
+.pc-yes-odds{font-family:var(--mono);font-size:10px;color:var(--muted2)}
 
-/* ─── EVENT ROW / CARD ─── */
-.event-card {
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  margin-bottom: 8px;
-  overflow: hidden;
-  cursor: pointer;
-  transition: border-color .2s, box-shadow .2s;
-  animation: fadeIn .25s ease both;
-}
-@keyframes fadeIn { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:none; } }
-.event-card:hover { border-color: var(--border2); box-shadow: 0 4px 20px rgba(0,0,0,.3); }
-.event-card.arb   { border-left: 3px solid var(--green); }
-.event-card.arb:hover { border-color: rgba(34,197,94,.4); }
-.event-card.diff  { border-left: 3px solid var(--yellow); }
-.event-card.diff:hover { border-color: rgba(245,158,11,.4); }
+/* NO row */
+.pc-no{display:flex;align-items:baseline;gap:5px}
+.pc-no-lbl{font-family:var(--mono);font-size:8px;font-weight:600;color:var(--red);text-transform:uppercase;min-width:22px}
+.pc-no-val{font-family:var(--mono);font-size:12px;line-height:1;color:var(--muted2)}
 
-/* main row inside card */
-.erow {
-  display: grid;
-  grid-template-columns: 1fr 130px 130px 130px 130px 120px;
-  gap: 8px;
-  padding: 14px 16px;
-  align-items: center;
-}
-
-.e-title { font-size: 13px; font-weight: 600; line-height: 1.4; }
-.e-outcomes { display: flex; gap: 6px; margin-top: 5px; flex-wrap: wrap; }
-.outcome-tag { font-family: var(--mono); font-size: 9px; padding: 1px 7px; border-radius: 2px; text-transform: uppercase; letter-spacing: 1px; }
-.ot-yes { background: rgba(34,197,94,.1);  color: var(--green); border: 1px solid rgba(34,197,94,.2); }
-.ot-no  { background: rgba(239,68,68,.1);  color: var(--red);   border: 1px solid rgba(239,68,68,.2); }
-
-/* price cell */
-.pcell { display: flex; flex-direction: column; gap: 2px; }
-.pcell-src { font-family: var(--mono); font-size: 9px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
-.pcell-val { font-family: var(--mono); font-size: 18px; font-weight: 700; line-height: 1; }
-.pcell-dec { font-family: var(--mono); font-size: 10px; color: var(--muted2); }
-.pcell-nd  { font-family: var(--mono); font-size: 11px; color: var(--muted); font-style: italic; }
-.pcell.poly   .pcell-src { color: var(--poly); }
-.pcell.poly   .pcell-val { color: var(--poly); }
-.pcell.kalshi .pcell-src { color: var(--kalshi); }
-.pcell.kalshi .pcell-val { color: var(--kalshi); }
-.pcell.book   .pcell-src { color: var(--book); }
+/* no data */
+.pc-nd{font-family:var(--mono);font-size:10px;color:var(--muted);font-style:italic;margin-top:6px}
 
 /* spread cell */
-.scell { display: flex; flex-direction: column; gap: 3px; }
-.spread-tag { font-family: var(--mono); font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 3px; display: inline-flex; align-items: center; gap: 4px; width: fit-content; }
-.st-arb  { background: rgba(34,197,94,.12);  color: var(--green);  border: 1px solid rgba(34,197,94,.25); }
-.st-diff { background: rgba(245,158,11,.1);  color: var(--yellow); border: 1px solid rgba(245,158,11,.25); }
-.st-none { background: rgba(255,255,255,.04); color: var(--muted); border: 1px solid var(--border); }
-.spread-sub { font-family: var(--mono); font-size: 9px; color: var(--muted); }
+.sc{display:flex;flex-direction:column;gap:3px;align-items:flex-start}
+.stag{font-family:var(--mono);font-size:11px;font-weight:700;padding:3px 8px;border-radius:3px}
+.st-arb {background:rgba(34,197,94,.12); color:var(--green); border:1px solid rgba(34,197,94,.25)}
+.st-diff{background:rgba(245,158,11,.1); color:var(--yellow);border:1px solid rgba(245,158,11,.25)}
+.st-none{background:rgba(255,255,255,.04);color:var(--muted); border:1px solid var(--border)}
+.ssub{font-family:var(--mono);font-size:8px;color:var(--muted)}
 
-/* ─── EXPANDED DETAIL ─── */
-.edetail {
-  border-top: 1px solid var(--border);
-  background: var(--card2);
-  padding: 16px 20px;
-  display: none;
-}
-.edetail.open { display: block; }
+/* ── DETAIL (expanded) ── */
+.detail{border-top:1px solid var(--border);background:var(--card2);padding:16px 18px;display:none}
+.detail.open{display:block}
+.dboxes{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin-bottom:14px}
+.db{background:var(--card);border:1px solid var(--border);border-radius:4px;padding:12px 14px}
+.db.poly-b  {border-color:rgba(0,194,255,.2); background:rgba(0,194,255,.04)}
+.db.kal-b   {border-color:rgba(155,108,255,.2);background:rgba(155,108,255,.04)}
+.db.arb-b   {border-color:rgba(34,197,94,.25); background:rgba(34,197,94,.06)}
+.db-lbl{font-family:var(--mono);font-size:8px;text-transform:uppercase;letter-spacing:2px;color:var(--muted);margin-bottom:8px}
+.db.poly-b .db-lbl  {color:var(--poly)}
+.db.kal-b  .db-lbl  {color:var(--kalshi)}
+.db.arb-b  .db-lbl  {color:var(--green)}
+.db-yn{display:flex;gap:16px}
+.db-side{display:flex;flex-direction:column;gap:2px}
+.db-side-lbl{font-family:var(--mono);font-size:9px;font-weight:700;text-transform:uppercase}
+.db-side-lbl.yes{color:var(--green)}
+.db-side-lbl.no {color:var(--red)}
+.db-side-val{font-family:var(--mono);font-size:20px;font-weight:700}
+.db-side-odds{font-family:var(--mono);font-size:11px;color:var(--muted2)}
+.db-nd{font-family:var(--mono);font-size:12px;color:var(--muted);font-style:italic}
 
-.detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 16px; }
-.dbox { background: var(--card); border: 1px solid var(--border); border-radius: 4px; padding: 12px 14px; }
-.dbox.poly-box   { border-color: rgba(0,194,255,.2);  background: rgba(0,194,255,.04); }
-.dbox.kalshi-box { border-color: rgba(155,108,255,.2); background: rgba(155,108,255,.04); }
-.dbox.arb-box    { border-color: rgba(34,197,94,.25); background: rgba(34,197,94,.06); }
-.dbox-lbl { font-family: var(--mono); font-size: 9px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); margin-bottom: 6px; }
-.dbox.poly-box .dbox-lbl   { color: var(--poly); }
-.dbox.kalshi-box .dbox-lbl { color: var(--kalshi); }
-.dbox.arb-box .dbox-lbl    { color: var(--green); }
-.dbox-val { font-family: var(--mono); font-size: 22px; font-weight: 700; }
-.dbox-sub { font-family: var(--mono); font-size: 11px; color: var(--muted2); margin-top: 3px; }
+.explain{padding:11px 14px;border-radius:4px;font-size:13px;line-height:1.7;border:1px solid;margin-bottom:14px}
+.explain.arb {background:rgba(34,197,94,.06);border-color:rgba(34,197,94,.2);color:#86efac}
+.explain.diff{background:rgba(245,158,11,.06);border-color:rgba(245,158,11,.2);color:#fcd34d}
+.explain strong{font-weight:700}
 
-.arb-explain {
-  background: rgba(34,197,94,.06);
-  border: 1px solid rgba(34,197,94,.2);
-  border-radius: 4px;
-  padding: 12px 16px;
-  font-size: 13px;
-  line-height: 1.7;
-  color: #86efac;
-  margin-bottom: 14px;
-}
-.arb-explain strong { color: var(--green); }
+.dlinks{display:flex;gap:10px;flex-wrap:wrap}
+.dlink{font-family:var(--mono);font-size:9px;text-decoration:none;padding:5px 12px;border-radius:3px;border:1px solid;opacity:.7;transition:opacity .2s;text-transform:uppercase;letter-spacing:1px}
+.dlink:hover{opacity:1}
+.dlink.poly  {color:var(--poly);  border-color:rgba(0,194,255,.3)}
+.dlink.kalshi{color:var(--kalshi);border-color:rgba(155,108,255,.3)}
 
-.diff-explain {
-  background: rgba(245,158,11,.06);
-  border: 1px solid rgba(245,158,11,.2);
-  border-radius: 4px;
-  padding: 12px 16px;
-  font-size: 13px;
-  line-height: 1.7;
-  color: #fcd34d;
-  margin-bottom: 14px;
-}
+.empty{text-align:center;padding:60px 0;font-family:var(--mono);font-size:12px;color:var(--muted);line-height:2}
 
-.detail-links { display: flex; gap: 12px; flex-wrap: wrap; }
-.dlink { font-family: var(--mono); font-size: 10px; text-decoration: none; opacity: .7; transition: opacity .2s; text-transform: uppercase; letter-spacing: 1px; padding: 5px 12px; border-radius: 3px; border: 1px solid; }
-.dlink:hover { opacity: 1; }
-.dlink.poly   { color: var(--poly);   border-color: rgba(0,194,255,.3); }
-.dlink.kalshi { color: var(--kalshi); border-color: rgba(155,108,255,.3); }
+/* ── TOAST ── */
+#toast{position:fixed;bottom:22px;right:22px;z-index:9999;font-family:var(--mono);font-size:11px;padding:9px 16px;border-radius:3px;background:var(--card2);border:1px solid var(--bord2);color:var(--text);transform:translateY(60px);opacity:0;transition:all .3s;pointer-events:none}
+#toast.show{transform:translateY(0);opacity:1}
+#toast.ok {border-color:var(--green);color:var(--green)}
+#toast.err{border-color:var(--red);  color:var(--red)}
 
-/* ─── EMPTY STATE ─── */
-.empty { text-align: center; padding: 60px 0; font-family: var(--mono); font-size: 13px; color: var(--muted); }
-.empty-icon { font-size: 36px; display: block; margin-bottom: 12px; }
-.empty-sub  { font-size: 11px; color: var(--muted); margin-top: 8px; line-height: 1.8; }
-
-/* ─── TOAST ─── */
-#toast { position: fixed; bottom: 24px; right: 24px; z-index: 9999; font-family: var(--mono); font-size: 12px; padding: 10px 16px; border-radius: 4px; background: var(--card2); border: 1px solid var(--border2); color: var(--text); transform: translateY(60px); opacity: 0; transition: all .3s; pointer-events: none; }
-#toast.show { transform: translateY(0); opacity: 1; }
-#toast.ok  { border-color: var(--green); color: var(--green); }
-#toast.err { border-color: var(--red);   color: var(--red); }
-
-@media (max-width: 900px) {
-  .table-head { display: none; }
-  .erow { grid-template-columns: 1fr 1fr; grid-template-rows: auto auto auto; }
-  .e-info { grid-column: 1/-1; }
-  .hcenter { display: none; }
-  header { padding: 0 16px; }
-  main, .filters-bar, .status-bar { padding-left: 16px; padding-right: 16px; }
+@media(max-width:900px){
+  .thead{display:none}
+  .crow{grid-template-columns:1fr 1fr;grid-template-rows:auto auto auto}
+  .e-info{grid-column:1/-1}
+  .hstats{display:none}
+  header{padding:0 14px}
+  main,.fbar,.sbar{padding-left:14px;padding-right:14px}
 }
 </style>
 </head>
@@ -229,59 +182,55 @@ main { max-width: 1400px; margin: 0 auto; padding: 24px 32px 80px; }
 
 <header>
   <div class="logo">Poly<span>Edge</span><small>Арбитраж маркетов</small></div>
-  <div class="hcenter">
-    <div class="hstat"><div class="hstat-v" id="hTotal">—</div><div class="hstat-l">Событий</div></div>
-    <div class="hstat"><div class="hstat-v" id="hArb" style="color:var(--green)">—</div><div class="hstat-l">Арбитраж</div></div>
-    <div class="hstat"><div class="hstat-v" id="hDiff" style="color:var(--yellow)">—</div><div class="hstat-l">Расхождение</div></div>
-    <div class="hstat"><div class="hstat-v" id="hKalshi">—</div><div class="hstat-l">Kalshi матчей</div></div>
+  <div class="hstats">
+    <div class="hs"><div class="hs-v" id="hTotal">—</div><div class="hs-l">Событий</div></div>
+    <div class="hs"><div class="hs-v" id="hArb" style="color:var(--green)">—</div><div class="hs-l">Арбитраж</div></div>
+    <div class="hs"><div class="hs-v" id="hDiff" style="color:var(--yellow)">—</div><div class="hs-l">Расхождение</div></div>
+    <div class="hs"><div class="hs-v" id="hKal">—</div><div class="hs-l">Kalshi матчей</div></div>
   </div>
   <div class="hright">
     <div class="live"><div class="live-dot"></div>Live</div>
-    <button class="refresh-btn" onclick="manualRefresh()">↻ Обновить</button>
+    <button class="rbtn" onclick="manualRefresh()">↻ Обновить</button>
   </div>
 </header>
 
-<div class="status-bar">
-  <div class="src src-wait" id="srcPoly"><div class="dot" style="background:var(--yellow)"></div>Polymarket: загрузка...</div>
-  <div class="src src-wait" id="srcKalshi"><div class="dot" style="background:var(--yellow)"></div>Kalshi: загрузка...</div>
-  <div class="src src-wait" id="srcBook"><div class="dot" style="background:var(--yellow)"></div>Букмекеры: нет данных</div>
+<div class="sbar">
+  <div class="src s-wait" id="srcPoly">  <div class="sd" style="background:var(--yellow)"></div>Polymarket: загрузка...</div>
+  <div class="src s-wait" id="srcKalshi"><div class="sd" style="background:var(--yellow)"></div>Kalshi: загрузка...</div>
+  <div class="src s-wait" id="srcBook">  <div class="sd" style="background:var(--yellow)"></div>Букмекеры: нет данных</div>
 </div>
 
-<div class="filters-bar">
-  <button class="filter-btn act"  onclick="setFilter('all',this)">Все события</button>
-  <button class="filter-btn act2" onclick="setFilter('arb',this)">🟢 Арбитраж (YES+NO &lt; 1$)</button>
-  <button class="filter-btn"      onclick="setFilter('diff',this)">🟡 Расхождение ≥3%</button>
-  <div class="sep"></div>
-  <button class="filter-btn" onclick="setFilter('Politics',this)">Политика</button>
-  <button class="filter-btn" onclick="setFilter('Sports',this)">Спорт</button>
-  <button class="filter-btn" onclick="setFilter('Crypto',this)">Крипто</button>
-  <button class="filter-btn" onclick="setFilter('Economics',this)">Экономика</button>
-  <div class="sep"></div>
-  <select onchange="setSort(this.value)" style="font-family:var(--mono);font-size:10px;background:var(--card);border:1px solid var(--border);color:var(--text);padding:5px 10px;border-radius:3px;cursor:pointer;outline:none">
-    <option value="arb">По ROI арбитража</option>
+<div class="fbar">
+  <button class="fbtn fa"  onclick="setF('all',this)">Все события</button>
+  <button class="fbtn fg"  onclick="setF('arb',this)">🟢 Арбитраж</button>
+  <button class="fbtn"     onclick="setF('diff',this)">🟡 Расхождение ≥3%</button>
+  <div class="vsep"></div>
+  <button class="fbtn" onclick="setF('Politics',this)">Политика</button>
+  <button class="fbtn" onclick="setF('Sports',this)">Спорт</button>
+  <button class="fbtn" onclick="setF('Crypto',this)">Крипто</button>
+  <button class="fbtn" onclick="setF('Economics',this)">Экономика</button>
+  <div class="vsep"></div>
+  <select class="sort-sel" onchange="setSort(this.value)">
+    <option value="arb">По ROI</option>
     <option value="diff">По расхождению</option>
     <option value="vol">По объёму</option>
   </select>
-  <span class="upd-info" id="updInfo">— · Авто: <span class="upd-next" id="updNext">—</span></span>
+  <span class="upd-r" id="updR">— · обновление: <span class="upd-n" id="updN">—</span></span>
 </div>
 
 <main>
-  <div id="scrLoad" class="screen">
-    <div class="spinner"></div>
-    <div class="screen-txt" id="loadTxt">Загрузка данных...</div>
-  </div>
-  <div id="scrErr" class="screen" style="display:none">
-    <div style="font-size:36px">⚠️</div>
-    <div class="screen-txt" id="errTxt">Ошибка загрузки</div>
+  <div id="scrLoad" class="screen"><div class="spinner"></div><div class="scr-txt" id="loadTxt">Загрузка...</div></div>
+  <div id="scrErr"  class="screen" style="display:none">
+    <div style="font-size:32px">⚠️</div>
+    <div class="scr-txt" id="errTxt">Ошибка</div>
     <button class="retry-btn" onclick="loadAll()">Повторить</button>
   </div>
-  <div id="appWrap" style="display:none">
-    <div class="table-head">
+  <div id="app" style="display:none">
+    <div class="thead">
       <div>Событие</div>
       <div>Polymarket</div>
       <div>Kalshi</div>
       <div>Ср. букмекеры</div>
-      <div>YES+NO сумма</div>
       <div>Расхождение</div>
     </div>
     <div id="list"></div>
@@ -289,489 +238,383 @@ main { max-width: 1400px; margin: 0 auto; padding: 24px 32px 80px; }
 </main>
 
 <script>
-// ═══════════════════════════════════════════
-//  CONFIG
-// ═══════════════════════════════════════════
-const REFRESH = 60; // seconds
+// ════════════════════════════════
+// CONFIG
+// ════════════════════════════════
+const REFRESH = 60;
 
-// ═══════════════════════════════════════════
-//  STATE
-// ═══════════════════════════════════════════
-let events    = [];   // final merged & enriched list
-let kalshiMap = {};   // norm(title) → kalshi market
-let filter    = 'all';
-let sortBy    = 'arb';
-let countdown = REFRESH;
-let timer     = null;
-let openCard  = null; // currently expanded card id
+// ════════════════════════════════
+// STATE
+// ════════════════════════════════
+let events = [], kalMap = {}, filter = 'all', sortBy = 'arb';
+let cd = REFRESH, tmr = null, openId = null;
 
-// ═══════════════════════════════════════════
-//  INIT
-// ═══════════════════════════════════════════
+// ════════════════════════════════
+// INIT
+// ════════════════════════════════
 window.addEventListener('DOMContentLoaded', () => { loadAll(); startTimer(); });
 
-// ═══════════════════════════════════════════
-//  LOAD
-// ═══════════════════════════════════════════
+// ════════════════════════════════
+// LOAD
+// ════════════════════════════════
 async function loadAll() {
   showScr('load'); setText('loadTxt', 'Загрузка Polymarket...');
 
   // 1. Polymarket
-  let polyMarkets = null;
+  let poly = null;
   try {
-    const r = await fetch('/api/markets', { signal: AbortSignal.timeout(8000) });
+    const r = await fetch('/api/markets', { signal: AbortSignal.timeout(9000) });
     const j = await r.json();
     if (j.ok && j.markets?.length) {
-      polyMarkets = j.markets;
-      setSrc('srcPoly', 'ok', `Polymarket: ${j.markets.length} маркетов ✓`);
+      poly = j.markets;
+      setSrc('srcPoly','ok',`Polymarket: ${j.markets.length} маркетов ✓`);
     } else throw new Error(j.error || 'пустой ответ');
   } catch(e) {
-    setSrc('srcPoly', 'err', `Polymarket: ${e.message}`);
+    setSrc('srcPoly','err',`Polymarket: ${e.message}`);
     setText('errTxt', `Polymarket недоступен: ${e.message}`);
     showScr('err'); return;
   }
 
   // 2. Kalshi
   setText('loadTxt', 'Загрузка Kalshi...');
-  kalshiMap = {};
+  kalMap = {};
   try {
-    const r = await fetch('/api/kalshi', { signal: AbortSignal.timeout(10000) });
+    const r = await fetch('/api/kalshi', { signal: AbortSignal.timeout(12000) });
     const j = await r.json();
     if (j.ok && j.markets?.length) {
       j.markets.forEach(km => {
-        kalshiMap[norm(km.title)] = km;
-        if (km.ticker) kalshiMap[km.ticker.toLowerCase()] = km;
+        kalMap[norm(km.title)] = km;
+        if (km.ticker) kalMap[km.ticker.toLowerCase()] = km;
       });
-      setSrc('srcKalshi', 'ok', `Kalshi: ${j.markets.length} маркетов ✓`);
+      setSrc('srcKalshi','ok',`Kalshi: ${j.markets.length} маркетов ✓ (из ${j.total_raw} всего)`);
     } else throw new Error(j.error || 'пустой ответ');
   } catch(e) {
-    setSrc('srcKalshi', 'err', `Kalshi: ${e.message}`);
+    setSrc('srcKalshi','err',`Kalshi: ${e.message}`);
   }
 
-  // 3. Bookmakers — no real data yet
-  setSrc('srcBook', 'wait', 'Букмекеры: нет данных (нужен API ключ)');
+  setSrc('srcBook','wait','Букмекеры: нет данных');
 
-  // 4. Build event list
-  events = polyMarkets.map(buildEvent).filter(Boolean);
-
-  renderAll();
+  // 3. Build
+  events = poly.map(buildEv).filter(Boolean);
+  render();
   showScr('app');
-  setText('updInfo', `Обновлено ${new Date().toLocaleTimeString('ru-RU')} · Авто: `);
-  toast(`✓ Загружено: ${events.length} событий, ${events.filter(e=>e.kalshi).length} с Kalshi`, 'ok');
+  setText('updR', `Обновлено ${new Date().toLocaleTimeString('ru-RU')} · обновление: `);
+  toast(`✓ ${events.length} событий, ${events.filter(e=>e.kal).length} с Kalshi`, 'ok');
 }
 
-// ═══════════════════════════════════════════
-//  BUILD EVENT
-// ═══════════════════════════════════════════
-function buildEvent(m) {
-  // Parse Poly
+// ════════════════════════════════
+// BUILD EVENT
+// ════════════════════════════════
+function buildEv(m) {
   const p = m.yesProb;
   if (!p || p < 0.02 || p > 0.98) return null;
 
-  // Find Kalshi match
   const km = findKalshi(m.question);
 
-  // Prices
-  const poly_yes = p;
-  const poly_no  = 1 - p;
-  const kal_yes  = km ? km.yesProb : null;
-  const kal_no   = km ? (1 - km.yesProb) : null;
+  const py = p,          pn = 1 - p;
+  const ky = km?.yesProb ?? null;
+  const kn = ky != null ? 1 - ky : null;
 
-  // Arbitrage: buy YES on cheaper platform + NO on cheaper platform
-  // Classic arb: if poly_yes + kal_no < 1 → buy YES on Poly, NO on Kalshi
-  //              if kal_yes + poly_no < 1 → buy YES on Kalshi, NO on Poly
+  // Calc arbitrage
   let arb = null;
-  if (kal_yes != null) {
-    const s1 = poly_yes + kal_no;   // buy Poly YES + Kalshi NO
-    const s2 = kal_yes  + poly_no;  // buy Kalshi YES + Poly NO
+  if (ky != null) {
+    const s1 = py + kn;  // buy Poly YES + Kalshi NO
+    const s2 = ky + pn;  // buy Kalshi YES + Poly NO
+    const best = Math.min(s1, s2);
 
-    if (s1 < 0.99) {
+    if (best < 0.985) {
+      const useS1 = s1 <= s2;
       arb = {
         type: 'arb',
-        strategy: `Купи YES на Polymarket (${pct(poly_yes)}) + NO на Kalshi (${pct(kal_no)})`,
-        cost: s1,
-        profit: 1 - s1,
-        roi: ((1 - s1) / s1) * 100,
-        side_poly: 'YES',
-        side_kal:  'NO',
-      };
-    } else if (s2 < 0.99) {
-      arb = {
-        type: 'arb',
-        strategy: `Купи YES на Kalshi (${pct(kal_yes)}) + NO на Polymarket (${pct(poly_no)})`,
-        cost: s2,
-        profit: 1 - s2,
-        roi: ((1 - s2) / s2) * 100,
-        side_poly: 'NO',
-        side_kal:  'YES',
+        cost: useS1 ? s1 : s2,
+        profit: 1 - (useS1 ? s1 : s2),
+        roi: ((1 - (useS1 ? s1 : s2)) / (useS1 ? s1 : s2)) * 100,
+        polyBuy: useS1 ? 'YES' : 'NO',
+        kalBuy:  useS1 ? 'NO'  : 'YES',
+        polyPrice: useS1 ? py : pn,
+        kalPrice:  useS1 ? kn : ky,
       };
     } else {
-      // Just a difference, not full arb
-      const diff = Math.abs(poly_yes - kal_yes);
+      const diff = Math.abs(py - ky);
       if (diff >= 0.03) {
         arb = {
           type: 'diff',
           diff,
-          higher: poly_yes > kal_yes ? 'Polymarket' : 'Kalshi',
-          lower:  poly_yes > kal_yes ? 'Kalshi' : 'Polymarket',
-          strategy: poly_yes > kal_yes
-            ? `Polymarket оценивает YES на ${pct(diff)} выше Kalshi`
-            : `Kalshi оценивает YES на ${pct(diff)} выше Polymarket`,
+          higher: py > ky ? 'Polymarket' : 'Kalshi',
+          lower:  py > ky ? 'Kalshi' : 'Polymarket',
         };
       }
     }
   }
 
-  // YES+NO sum for display
-  const sumPK = kal_yes != null ? (poly_yes + kal_no) : null;
-  const minSum = kal_yes != null ? Math.min(poly_yes + kal_no, kal_yes + poly_no) : null;
-
   return {
-    id:       m.id,
-    question: m.question,
-    outcomes: m.outcomes || ['Yes','No'],
-    category: guessCat(m.question, m.tags),
-    poly_yes, poly_no,
-    kal_yes, kal_no,
-    kalshi: km,
+    id: m.id,
+    q: m.question,
+    yL: m.outcomes?.[0] || 'Да',
+    nL: m.outcomes?.[1] || 'Нет',
+    cat: guessCat(m.question, m.tags),
+    py, pn, ky, kn,
+    kal: km,
     arb,
-    minSum,
-    volume: m.volume || 0,
-    volStr: fmtVol(m.volume || 0),
-    endDate: m.endDate ? new Date(m.endDate).toLocaleDateString('ru-RU',{day:'numeric',month:'short'}) : '—',
-    url: `https://polymarket.com/event/${m.slug}`,
-    clobTokenId: m.clobTokenId || null,
+    vol: m.volume || 0,
+    volS: fmtVol(m.volume || 0),
+    end: m.endDate ? new Date(m.endDate).toLocaleDateString('ru-RU',{day:'numeric',month:'short'}) : '—',
+    url: `https://polymarket.com/event/${m.slug || ''}`,
   };
 }
 
-// ═══════════════════════════════════════════
-//  KALSHI MATCHING
-// ═══════════════════════════════════════════
-function norm(t) {
-  return (t||'').toLowerCase().replace(/[^a-z0-9 ]/g,' ').replace(/\s+/g,' ').trim();
-}
+// ════════════════════════════════
+// KALSHI MATCHING
+// ════════════════════════════════
+function norm(t){ return (t||'').toLowerCase().replace(/[^a-z0-9 ]/g,' ').replace(/\s+/g,' ').trim(); }
 const STOP = new Set(['will','the','a','an','in','on','at','to','of','for','be','is','are','was','by','or','and','that','this','with','have','not','its','per']);
-function kw(t) { return norm(t).split(' ').filter(w => w.length > 2 && !STOP.has(w)); }
-
-function findKalshi(question) {
-  const exact = kalshiMap[norm(question)];
+function kws(t){ return norm(t).split(' ').filter(w=>w.length>2&&!STOP.has(w)); }
+function findKalshi(q) {
+  const exact = kalMap[norm(q)];
   if (exact) return exact;
-  const qkw = kw(question);
-  if (!qkw.length) return null;
-  let best = null, bs = 0;
-  for (const km of Object.values(kalshiMap)) {
+  const qk = kws(q);
+  if (!qk.length) return null;
+  let best=null,bs=0;
+  for (const km of Object.values(kalMap)) {
     if (!km.title) continue;
-    const mkw = kw(km.title);
-    const hits = qkw.filter(w => mkw.some(kw2 => kw2.includes(w) || w.includes(kw2)));
-    const score = hits.length / Math.max(qkw.length, mkw.length, 1);
-    if (hits.length >= 2 && score > bs && score >= 0.25) { best = km; bs = score; }
+    const mk = kws(km.title);
+    const hits = qk.filter(w => mk.some(kw => kw.includes(w)||w.includes(kw)));
+    const score = hits.length / Math.max(qk.length, mk.length, 1);
+    if (hits.length>=2 && score>bs && score>=0.25) { best=km; bs=score; }
   }
   return best;
 }
 
-// ═══════════════════════════════════════════
-//  RENDER
-// ═══════════════════════════════════════════
-function renderAll() {
+// ════════════════════════════════
+// RENDER
+// ════════════════════════════════
+function render() {
   let list = [...events];
+  if      (filter==='arb')  list = list.filter(e=>e.arb?.type==='arb');
+  else if (filter==='diff') list = list.filter(e=>e.arb!=null);
+  else if (filter!=='all')  list = list.filter(e=>e.cat===filter);
 
-  // Filter
-  if (filter === 'arb')  list = list.filter(e => e.arb?.type === 'arb');
-  else if (filter === 'diff') list = list.filter(e => e.arb != null);
-  else if (filter !== 'all') list = list.filter(e => e.category === filter);
+  if      (sortBy==='arb')  list.sort((a,b)=>(b.arb?.roi||0)-(a.arb?.roi||0));
+  else if (sortBy==='diff') list.sort((a,b)=>(b.arb?.diff||b.arb?.profit||0)-(a.arb?.diff||a.arb?.profit||0));
+  else                      list.sort((a,b)=>b.vol-a.vol);
 
-  // Sort
-  if (sortBy === 'arb')  list.sort((a,b) => (b.arb?.roi||0) - (a.arb?.roi||0));
-  else if (sortBy === 'diff') list.sort((a,b) => (b.arb?.diff||b.arb?.profit||0) - (a.arb?.diff||a.arb?.profit||0));
-  else list.sort((a,b) => b.volume - a.volume);
+  setText('hTotal', events.length);
+  setText('hArb',   events.filter(e=>e.arb?.type==='arb').length);
+  setText('hDiff',  events.filter(e=>e.arb?.type==='diff').length);
+  setText('hKal',   events.filter(e=>e.kal).length);
 
-  // Stats
-  const arbCount  = events.filter(e => e.arb?.type==='arb').length;
-  const diffCount = events.filter(e => e.arb?.type==='diff').length;
-  const kalCount  = events.filter(e => e.kalshi).length;
-  setText('hTotal',  events.length);
-  setText('hArb',    arbCount);
-  setText('hDiff',   diffCount);
-  setText('hKalshi', kalCount);
-
-  const container = $('list');
-  container.innerHTML = '';
-
+  const el = $('list');
+  el.innerHTML = '';
   if (!list.length) {
-    container.innerHTML = `
-      <div class="empty">
-        <span class="empty-icon">🔍</span>
-        Нет событий по выбранному фильтру
-        <div class="empty-sub">
-          Polymarket и Kalshi загружены.<br>
-          Попробуй фильтр «Все события» или «Расхождение ≥3%».
-        </div>
-      </div>`;
+    el.innerHTML='<div class="empty">Нет событий по фильтру.<br>Попробуй «Все события».</div>';
     return;
   }
-
-  list.forEach((ev, i) => renderCard(container, ev, i));
+  list.forEach((ev,i) => el.appendChild(makeCard(ev, i)));
 }
 
-function renderCard(container, ev, i) {
-  const yL = ev.outcomes[0] || 'Yes';
-  const nL = ev.outcomes[1] || 'No';
-  const hasKal = ev.kal_yes != null;
-  const isArb  = ev.arb?.type === 'arb';
-  const isDiff = ev.arb?.type === 'diff';
+function makeCard(ev, i) {
+  const isArb  = ev.arb?.type==='arb';
+  const isDiff = ev.arb?.type==='diff';
 
   // Price cells
-  const polyCell = `<div class="pcell poly">
-    <div class="pcell-src">Polymarket</div>
-    <div class="pcell-val">${p100(ev.poly_yes)}%</div>
-    <div class="pcell-dec">${dec(ev.poly_yes)}</div>
-  </div>`;
+  const polyCell = priceCell('poly', 'Polymarket', ev.py, ev.pn, ev.yL, ev.nL);
+  const kalCell  = ev.ky!=null
+    ? priceCell('kalshi','Kalshi', ev.ky, ev.kn, ev.yL, ev.nL)
+    : `<div class="pc kalshi"><div class="pc-src">Kalshi</div><div class="pc-nd">нет данных</div></div>`;
+  const bookCell = `<div class="pc book"><div class="pc-src">Ср. 20 букмекеров</div><div class="pc-nd">нет данных</div></div>`;
 
-  const kalCell = hasKal
-    ? `<div class="pcell kalshi">
-        <div class="pcell-src">Kalshi</div>
-        <div class="pcell-val">${p100(ev.kal_yes)}%</div>
-        <div class="pcell-dec">${dec(ev.kal_yes)}</div>
-      </div>`
-    : `<div class="pcell kalshi">
-        <div class="pcell-src">Kalshi</div>
-        <div class="pcell-nd">нет данных</div>
-      </div>`;
-
-  const bookCell = `<div class="pcell book">
-    <div class="pcell-src">Ср. букмекеры</div>
-    <div class="pcell-nd">нет данных</div>
-  </div>`;
-
-  // Sum cell
-  let sumCell;
-  if (hasKal) {
-    const minS = ev.minSum;
-    const sumColor = minS < 0.97 ? 'var(--green)' : minS < 1.0 ? 'var(--yellow)' : 'var(--muted2)';
-    sumCell = `<div class="pcell">
-      <div class="pcell-src">YES+NO</div>
-      <div class="pcell-val" style="color:${sumColor};font-size:16px">${(ev.minSum*100).toFixed(1)}¢</div>
-      <div class="pcell-dec">${ev.minSum < 1 ? '< $1 → арбитраж' : 'нет арбитража'}</div>
-    </div>`;
-  } else {
-    sumCell = `<div class="pcell"><div class="pcell-src">YES+NO</div><div class="pcell-nd">нет Kalshi</div></div>`;
-  }
-
-  // Spread badge
-  let spreadCell;
+  // Spread cell
+  let spread;
   if (isArb) {
-    spreadCell = `<div class="scell">
-      <div class="spread-tag st-arb">🟢 +${ev.arb.roi.toFixed(2)}% ROI</div>
-      <div class="spread-sub">Арбитраж</div>
-    </div>`;
+    spread = `<div class="sc"><div class="stag st-arb">+${ev.arb.roi.toFixed(1)}% ROI</div><div class="ssub">Арбитраж</div></div>`;
   } else if (isDiff) {
-    spreadCell = `<div class="scell">
-      <div class="spread-tag st-diff">⚡ ${pct(ev.arb.diff)}</div>
-      <div class="spread-sub">Расхождение</div>
-    </div>`;
+    spread = `<div class="sc"><div class="stag st-diff">↕ ${pct(ev.arb.diff)}</div><div class="ssub">Расхождение</div></div>`;
   } else {
-    spreadCell = `<div class="scell">
-      <div class="spread-tag st-none">≈ 0%</div>
-      <div class="spread-sub">Согласуются</div>
-    </div>`;
+    spread = `<div class="sc"><div class="stag st-none">≈ 0%</div><div class="ssub">Согласуются</div></div>`;
   }
-
-  const cardClass = isArb ? 'arb' : isDiff ? 'diff' : '';
 
   const card = document.createElement('div');
-  card.className = `event-card ${cardClass}`;
-  card.style.animationDelay = Math.min(i * .03, .6) + 's';
+  card.className = `card${isArb?' arb':isDiff?' diff':''}`;
+  card.style.animationDelay = Math.min(i*.025,.6)+'s';
   card.dataset.id = ev.id;
 
   card.innerHTML = `
-    <div class="erow" onclick="toggleCard('${ev.id}')">
+    <div class="crow" onclick="toggleDet('${ev.id}')">
       <div class="e-info">
-        <div class="e-title">${ev.question}</div>
-        <div class="e-outcomes">
-          <span class="outcome-tag ot-yes">${yL}</span>
-          <span class="outcome-tag ot-no">${nL}</span>
-          <span style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-left:4px">до ${ev.endDate} · VOL: ${ev.volStr}</span>
+        <div class="etitle">${ev.q}</div>
+        <div class="emeta">
+          <span class="cat-tag">${ev.cat}</span>
+          <span class="vol-tag">VOL: ${ev.volS} · до ${ev.end}</span>
         </div>
       </div>
-      ${polyCell}
-      ${kalCell}
-      ${bookCell}
-      ${sumCell}
-      ${spreadCell}
+      ${polyCell}${kalCell}${bookCell}${spread}
     </div>
-    <div class="edetail" id="det-${ev.id}">
-      ${buildDetail(ev)}
-    </div>`;
+    <div class="detail" id="det-${ev.id}">${buildDetail(ev)}</div>`;
+  return card;
+}
 
-  container.appendChild(card);
+// Price cell with YES and NO both labeled
+function priceCell(cls, src, yes, no, yL, nL) {
+  return `<div class="pc ${cls}">
+    <div class="pc-src">${src}</div>
+    <div class="pc-yes">
+      <span class="pc-yes-lbl">${yL}</span>
+      <span class="pc-yes-val">${Math.round(yes*100)}%</span>
+      <span class="pc-yes-odds">${dec(yes)}</span>
+    </div>
+    <div class="pc-no">
+      <span class="pc-no-lbl">${nL}</span>
+      <span class="pc-no-val">${Math.round(no*100)}% · ${dec(no)}</span>
+    </div>
+  </div>`;
 }
 
 function buildDetail(ev) {
-  const yL = ev.outcomes[0] || 'Yes';
-  const nL = ev.outcomes[1] || 'No';
-  const hasKal = ev.kal_yes != null;
-  const isArb  = ev.arb?.type === 'arb';
-  const isDiff = ev.arb?.type === 'diff';
+  const isArb  = ev.arb?.type==='arb';
+  const isDiff = ev.arb?.type==='diff';
 
-  let explanation = '';
+  let explain = '';
   if (isArb) {
-    explanation = `
-      <div class="arb-explain">
-        🟢 <strong>Арбитражная возможность!</strong><br>
-        ${ev.arb.strategy}<br>
-        Суммарная стоимость: <strong>${(ev.arb.cost*100).toFixed(1)}¢</strong> — при погашении выплата <strong>100¢</strong>.<br>
-        Гарантированная прибыль: <strong>+${(ev.arb.profit*100).toFixed(1)}¢ (${ev.arb.roi.toFixed(2)}% ROI)</strong> вне зависимости от исхода.
-      </div>`;
+    explain = `<div class="explain arb">
+      🟢 <strong>Арбитраж!</strong>
+      Купи <strong>${ev.arb.polyBuy === 'YES' ? ev.yL : ev.nL}</strong> на Polymarket (${pct(ev.arb.polyPrice)})
+      + <strong>${ev.arb.kalBuy === 'YES' ? ev.yL : ev.nL}</strong> на Kalshi (${pct(ev.arb.kalPrice)}).
+      Сумма: <strong>${(ev.arb.cost*100).toFixed(1)}¢</strong> — выплата всегда <strong>100¢</strong>.
+      Прибыль: <strong>+${(ev.arb.profit*100).toFixed(1)}¢ (${ev.arb.roi.toFixed(2)}% ROI)</strong> гарантирована.
+    </div>`;
   } else if (isDiff) {
-    explanation = `
-      <div class="diff-explain">
-        ⚡ <strong>${ev.arb.higher}</strong> оценивает «${yL}» на <strong>${pct(ev.arb.diff)} выше</strong> чем ${ev.arb.lower}.<br>
-        ${ev.arb.strategy}
-      </div>`;
+    explain = `<div class="explain diff">
+      ⚡ <strong>${ev.arb.higher}</strong> оценивает «${ev.yL}» на <strong>${pct(ev.arb.diff)} выше</strong> чем ${ev.arb.lower}.
+    </div>`;
   }
 
-  const boxes = `
-    <div class="detail-grid">
-      <div class="dbox poly-box">
-        <div class="dbox-lbl">⬡ Polymarket — YES / NO</div>
-        <div class="dbox-val" style="color:var(--poly)">${p100(ev.poly_yes)}%</div>
-        <div class="dbox-sub">${yL}: ${dec(ev.poly_yes)} · ${nL}: ${dec(ev.poly_no)}</div>
+  const boxes = `<div class="dboxes">
+    <div class="db poly-b">
+      <div class="db-lbl">⬡ Polymarket</div>
+      <div class="db-yn">
+        <div class="db-side">
+          <span class="db-side-lbl yes">${ev.yL} (YES)</span>
+          <span class="db-side-val" style="color:var(--green)">${Math.round(ev.py*100)}%</span>
+          <span class="db-side-odds">${dec(ev.py)}</span>
+        </div>
+        <div class="db-side">
+          <span class="db-side-lbl no">${ev.nL} (NO)</span>
+          <span class="db-side-val" style="color:var(--red)">${Math.round(ev.pn*100)}%</span>
+          <span class="db-side-odds">${dec(ev.pn)}</span>
+        </div>
       </div>
-      ${hasKal ? `
-      <div class="dbox kalshi-box">
-        <div class="dbox-lbl">◈ Kalshi — YES / NO</div>
-        <div class="dbox-val" style="color:var(--kalshi)">${p100(ev.kal_yes)}%</div>
-        <div class="dbox-sub">${yL}: ${dec(ev.kal_yes)} · ${nL}: ${dec(ev.kal_no)}</div>
-      </div>` : `
-      <div class="dbox">
-        <div class="dbox-lbl">◈ Kalshi</div>
-        <div class="dbox-val" style="font-size:14px;color:var(--muted)">Нет данных</div>
-        <div class="dbox-sub">Событие не найдено на Kalshi</div>
-      </div>`}
-      <div class="dbox">
-        <div class="dbox-lbl">📊 Ср. 20 букмекеров</div>
-        <div class="dbox-val" style="font-size:14px;color:var(--muted)">Нет данных</div>
-        <div class="dbox-sub">Нужен ключ <a href="https://the-odds-api.com" target="_blank" style="color:var(--book)">the-odds-api.com</a></div>
+    </div>
+    ${ev.ky!=null ? `
+    <div class="db kal-b">
+      <div class="db-lbl">◈ Kalshi</div>
+      <div class="db-yn">
+        <div class="db-side">
+          <span class="db-side-lbl yes">${ev.yL} (YES)</span>
+          <span class="db-side-val" style="color:var(--green)">${Math.round(ev.ky*100)}%</span>
+          <span class="db-side-odds">${dec(ev.ky)}</span>
+        </div>
+        <div class="db-side">
+          <span class="db-side-lbl no">${ev.nL} (NO)</span>
+          <span class="db-side-val" style="color:var(--red)">${Math.round(ev.kn*100)}%</span>
+          <span class="db-side-odds">${dec(ev.kn)}</span>
+        </div>
       </div>
-      ${isArb ? `
-      <div class="dbox arb-box">
-        <div class="dbox-lbl">💰 Арбитраж</div>
-        <div class="dbox-val" style="color:var(--green)">+${ev.arb.roi.toFixed(2)}%</div>
-        <div class="dbox-sub">Стоимость: ${(ev.arb.cost*100).toFixed(1)}¢ → Прибыль: +${(ev.arb.profit*100).toFixed(1)}¢</div>
-      </div>` : ''}
-    </div>`;
+    </div>` : `
+    <div class="db">
+      <div class="db-lbl">◈ Kalshi</div>
+      <div class="db-nd">Событие не найдено на Kalshi</div>
+    </div>`}
+    <div class="db">
+      <div class="db-lbl">📊 Ср. 20 букмекеров</div>
+      <div class="db-nd">Нет данных<br><span style="font-size:9px">нужен ключ <a href="https://the-odds-api.com" target="_blank" style="color:var(--book)">the-odds-api.com</a></span></div>
+    </div>
+    ${isArb ? `
+    <div class="db arb-b">
+      <div class="db-lbl">💰 Арбитраж</div>
+      <div class="db-side-val" style="color:var(--green);font-size:22px">+${ev.arb.roi.toFixed(2)}%</div>
+      <div class="db-side-odds">Стоимость ${(ev.arb.cost*100).toFixed(1)}¢ → прибыль +${(ev.arb.profit*100).toFixed(1)}¢</div>
+    </div>` : ''}
+  </div>`;
 
-  const links = `
-    <div class="detail-links">
-      <a href="${ev.url}" target="_blank" class="dlink poly">↗ Polymarket</a>
-      ${hasKal && ev.kalshi?.url ? `<a href="${ev.kalshi.url}" target="_blank" class="dlink kalshi">↗ Kalshi</a>` : ''}
-    </div>`;
+  const links = `<div class="dlinks">
+    <a href="${ev.url}" target="_blank" class="dlink poly">↗ Polymarket</a>
+    ${ev.kal?.url ? `<a href="${ev.kal.url}" target="_blank" class="dlink kalshi">↗ Kalshi</a>` : ''}
+  </div>`;
 
-  return explanation + boxes + links;
+  return explain + boxes + links;
 }
 
-function toggleCard(id) {
-  const det = document.getElementById(`det-${id}`);
-  if (!det) return;
-  const isOpen = det.classList.contains('open');
-  // Close previous
-  if (openCard && openCard !== id) {
-    const prev = document.getElementById(`det-${openCard}`);
+function toggleDet(id) {
+  const el = document.getElementById(`det-${id}`);
+  if (!el) return;
+  const wasOpen = el.classList.contains('open');
+  if (openId && openId !== id) {
+    const prev = document.getElementById(`det-${openId}`);
     if (prev) prev.classList.remove('open');
   }
-  det.classList.toggle('open', !isOpen);
-  openCard = isOpen ? null : id;
+  el.classList.toggle('open', !wasOpen);
+  openId = wasOpen ? null : id;
 }
 
-// ═══════════════════════════════════════════
-//  FILTER / SORT
-// ═══════════════════════════════════════════
-function setFilter(f, btn) {
+// ════════════════════════════════
+// FILTER / SORT
+// ════════════════════════════════
+function setF(f, btn) {
   filter = f;
-  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('act','act2'));
-  btn.classList.add(f==='arb'||f==='diff' ? 'act2' : 'act');
-  renderAll();
+  document.querySelectorAll('.fbtn').forEach(b => b.classList.remove('fa','fg'));
+  btn.classList.add(f==='arb'||f==='diff' ? 'fg' : 'fa');
+  render();
 }
-function setSort(v) { sortBy = v; renderAll(); }
+function setSort(v) { sortBy=v; render(); }
 
-// ═══════════════════════════════════════════
-//  AUTO REFRESH
-// ═══════════════════════════════════════════
+// ════════════════════════════════
+// AUTO REFRESH
+// ════════════════════════════════
 function startTimer() {
-  if (timer) clearInterval(timer);
-  countdown = REFRESH;
-  timer = setInterval(async () => {
-    countdown--;
-    const el = $('updNext');
-    if (el) el.textContent = countdown + 'с';
-    if (countdown <= 0) { countdown = REFRESH; await silentRefresh(); }
-  }, 1000);
+  if (tmr) clearInterval(tmr); cd=REFRESH;
+  tmr = setInterval(async()=>{
+    cd--;
+    const el=$('updN'); if(el) el.textContent=cd+'с';
+    if(cd<=0){cd=REFRESH; await silentRefresh();}
+  },1000);
 }
-
-async function silentRefresh() {
-  try {
-    const [pd, kd] = await Promise.allSettled([
-      fetch('/api/markets', {signal:AbortSignal.timeout(7000)}).then(r=>r.json()),
-      fetch('/api/kalshi',  {signal:AbortSignal.timeout(7000)}).then(r=>r.json()),
+async function silentRefresh(){
+  try{
+    const[pd,kd]=await Promise.allSettled([
+      fetch('/api/markets',{signal:AbortSignal.timeout(8000)}).then(r=>r.json()),
+      fetch('/api/kalshi', {signal:AbortSignal.timeout(10000)}).then(r=>r.json()),
     ]);
-    if (pd.status==='fulfilled' && pd.value.ok) {
-      kalshiMap = {};
-      if (kd.status==='fulfilled' && kd.value.ok) {
-        kd.value.markets.forEach(km => { kalshiMap[norm(km.title)] = km; });
+    if(pd.status==='fulfilled'&&pd.value.ok){
+      kalMap={};
+      if(kd.status==='fulfilled'&&kd.value.ok){
+        kd.value.markets.forEach(km=>{kalMap[norm(km.title)]=km;if(km.ticker)kalMap[km.ticker.toLowerCase()]=km;});
       }
-      const newEvents = pd.value.markets.map(buildEvent).filter(Boolean);
-      if (newEvents.length) {
-        events = newEvents;
-        renderAll();
-        setText('updInfo', `Обновлено ${new Date().toLocaleTimeString('ru-RU')} · Авто: `);
-      }
+      const ne=pd.value.markets.map(buildEv).filter(Boolean);
+      if(ne.length){events=ne;render();setText('updR',`Обновлено ${new Date().toLocaleTimeString('ru-RU')} · обновление: `);}
     }
-  } catch(e) { console.warn('Silent refresh failed', e); }
+  }catch(e){console.warn('Refresh failed',e);}
 }
+function manualRefresh(){cd=REFRESH;loadAll();}
 
-function manualRefresh() { countdown = REFRESH; loadAll(); }
-
-// ═══════════════════════════════════════════
-//  CATEGORY
-// ═══════════════════════════════════════════
-function guessCat(q, tags) {
-  const t = ((q||'') + JSON.stringify(tags||'')).toLowerCase();
-  if (/trump|biden|election|president|congress|senate|government|vote|democrat|republic|ukraine|russia|war|nato|zelensky|putin|macron|modi/.test(t)) return 'Politics';
-  if (/bitcoin|btc|eth|ethereum|crypto|defi|nft|token|coin|solana|doge|bnb/.test(t)) return 'Crypto';
-  if (/nba|nfl|nhl|mlb|soccer|football|basketball|tennis|formula|f1|champion|league|match|team|playoff|world cup|premier|bundesliga/.test(t)) return 'Sports';
-  if (/fed|rate|gdp|recession|inflation|economy|stock|earnings|bank|dollar|euro|cpi|unemployment/.test(t)) return 'Economics';
-  return 'Other';
+// ════════════════════════════════
+// HELPERS
+// ════════════════════════════════
+function guessCat(q,tags){
+  const t=((q||'')+JSON.stringify(tags||'')).toLowerCase();
+  if(/trump|biden|election|president|congress|senate|government|vote|democrat|republic|ukraine|russia|war|nato|zelensky|putin|macron|modi/.test(t))return'Politics';
+  if(/bitcoin|btc|eth|ethereum|crypto|defi|nft|token|coin|solana|doge|bnb/.test(t))return'Crypto';
+  if(/nba|nfl|nhl|mlb|soccer|football|basketball|tennis|formula|f1|champion|league|match|team|playoff|world cup|premier|bundesliga/.test(t))return'Sports';
+  if(/fed|rate|gdp|recession|inflation|economy|stock|earnings|bank|dollar|euro|cpi|unemployment/.test(t))return'Economics';
+  return'Other';
 }
-
-// ═══════════════════════════════════════════
-//  HELPERS
-// ═══════════════════════════════════════════
-const dec   = p  => (1/p).toFixed(2) + 'x';
-const pct   = v  => (v*100).toFixed(1) + '%';
-const p100  = v  => Math.round(v*100);
+const dec   = p  => (1/p).toFixed(2)+'x';
+const pct   = v  => (v*100).toFixed(1)+'%';
 const $     = id => document.getElementById(id);
-const setText = (id, t) => { const el=$(id); if(el) el.textContent=t; };
-function fmtVol(v) {
-  if (v>=1e9) return '$'+(v/1e9).toFixed(1)+'B';
-  if (v>=1e6) return '$'+(v/1e6).toFixed(1)+'M';
-  if (v>=1e3) return '$'+(v/1e3).toFixed(0)+'K';
-  return '$'+v.toFixed(0);
-}
-function showScr(name) {
-  $('scrLoad').style.display  = name==='load' ? '' : 'none';
-  $('scrErr').style.display   = name==='err'  ? '' : 'none';
-  $('appWrap').style.display  = name==='app'  ? '' : 'none';
-}
-function setSrc(id, type, text) {
-  const el=$(id), cls=type==='ok'?'src-ok':type==='err'?'src-err':'src-wait';
-  const col=type==='ok'?'var(--green)':type==='err'?'var(--red)':'var(--yellow)';
-  el.className=`src ${cls}`;
-  el.innerHTML=`<div class="dot" style="background:${col}"></div>${text}`;
-}
-function toast(msg, type='') {
-  const el=$('toast'); el.textContent=msg; el.className='show '+type;
-  setTimeout(()=>{ el.className=''; }, 3000);
-}
+const setText=(id,t)=>{const e=$(id);if(e)e.textContent=t;};
+function fmtVol(v){if(v>=1e9)return'$'+(v/1e9).toFixed(1)+'B';if(v>=1e6)return'$'+(v/1e6).toFixed(1)+'M';if(v>=1e3)return'$'+(v/1e3).toFixed(0)+'K';return'$'+v.toFixed(0);}
+function showScr(n){$('scrLoad').style.display=n==='load'?'':'none';$('scrErr').style.display=n==='err'?'':'none';$('app').style.display=n==='app'?'':'none';}
+function setSrc(id,t,text){const e=$(id),c=t==='ok'?'s-ok':t==='err'?'s-err':'s-wait',col=t==='ok'?'var(--green)':t==='err'?'var(--red)':'var(--yellow)';e.className=`src ${c}`;e.innerHTML=`<div class="sd" style="background:${col}"></div>${text}`;}
+function toast(msg,t=''){const e=$('toast');e.textContent=msg;e.className='show '+t;setTimeout(()=>{e.className='';},3000);}
 </script>
 </body>
 </html>

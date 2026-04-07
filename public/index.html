@@ -204,7 +204,7 @@ main{max-width:1440px;margin:0 auto;padding:20px 28px 80px}
   <div class="src s-wait" id="srcPoly">  <div class="sd" style="background:var(--yellow)"></div>Polymarket: загрузка...</div>
   <div class="src s-wait" id="srcKalshi"><div class="sd" style="background:var(--yellow)"></div>Kalshi: загрузка...</div>
   <div class="src s-wait" id="srcBook">  <div class="sd" style="background:var(--yellow)"></div>Букмекеры: нет данных</div>
-  <div class="src s-wait" id="srcAI">   <div class="sd" style="background:var(--yellow)"></div>DeepSeek: нет ключа</div>
+  <div class="src s-wait" id="srcAI">   <div class="sd" style="background:var(--yellow)"></div>Матчинг: загрузка...</div>
 </div>
 
 <div class="fbar">
@@ -418,11 +418,10 @@ async function loadAll() {
   setText('updR', `Обновлено ${new Date().toLocaleTimeString('ru-RU')} · обновление: `);
   toast(`✓ ${events.length} событий загружено`, 'ok');
 
-  // 5. DeepSeek semantic matching (async, upgrades results in background)
-  if (Object.keys(kalMap).length > 0) {
-    setText('loadTxt', 'DeepSeek анализирует совпадения...');
-    runDeepSeekMatch(poly, Object.values(kalMap));
-  }
+  // 5. Матчинг встроен в buildEv через rule-aware findKalshi
+  const kalMatched = events.filter(e => e.kal).length;
+  setSrc('srcAI', 'ok', `Матчинг: ${kalMatched} совпадений с Kalshi ✓`);
+  setText('hKal', kalMatched);
 }
 
 // ════════════════════════════════
@@ -609,53 +608,126 @@ function kalshiUrl(km) {
   if (et) return `https://kalshi.com/markets/${et}`;
   return 'https://kalshi.com';
 }
+// ════════════════════════════════════════════════════════════════
+// RULE-AWARE KALSHI MATCHER
+// ════════════════════════════════════════════════════════════════
 function norm(t){ return (t||'').toLowerCase().replace(/[^a-z0-9 ]/g,' ').replace(/\s+/g,' ').trim(); }
-const STOP = new Set(['will','the','a','an','in','on','at','to','of','for','be','is','are','was','by','or','and','that','this','with','have','not','its','per','win','wins','most','next','more','than','over','under','least','first']);
-function kws(t){ return norm(t).split(' ').filter(w=>w.length>3&&!STOP.has(w)); }
-
-// Returns true if Kalshi market looks like a numeric threshold market
-// e.g. "Above 120", "Over 50%", "At least 3" — these can't match binary yes/no questions
 function isNumericThreshold(km) {
-  const t = (km.title || '') + ' ' + (km.yes_sub_title || '') + ' ' + (km.no_sub_title || '');
+  const t=(km.title||'')+' '+(km.yes_sub_title||'')+' '+(km.no_sub_title||'');
   return /\b(above|below|over|under|at least|more than|fewer|higher|lower|between|\d+\s*%|\d+\s*seats|\d+\s*points|\d+\s*degrees?)\b/i.test(t);
 }
 
+const STOP_EXT = new Set([
+  'will','the','a','an','in','on','at','to','of','for','be','is','are','was',
+  'by','or','and','that','this','with','have','not','its','per','win','wins',
+  'most','next','more','than','over','under','least','first','been','from',
+  'which','what','who','how','when','where','does','did','has','had','would',
+  'could','should','may','might','shall','being','their','they','them','into',
+  'after','before','during','about','between','among','each','every','any',
+  'all','both','either','neither','whether','while','since','until','within',
+]);
+function kws(t){ return norm(t).split(' ').filter(w=>w.length>2&&!STOP_EXT.has(w)); }
+
+function extractNums(t) {
+  return ((t||'').match(/\b\d+(?:\.\d+)?\b/g)||[]).map(Number);
+}
+
+function hasThresholdConflict(textA, textB) {
+  const na = extractNums(textA), nb = extractNums(textB);
+  if (!na.length || !nb.length) return false;
+  for (const a of na) for (const b of nb) {
+    if (Math.abs(a-b)/Math.max(a,b,1) < 0.05) return false;
+  }
+  return true;
+}
+
+const RESOLUTION_CONFLICTS = [
+  ['nominat','confirm'], ['appoint','confirm'], ['nominat','elect'],
+  ['primary','general'], ['popular','electoral'], ['senate','house'],
+];
+function hasResolutionConflict(textA, textB) {
+  const a=(textA||'').toLowerCase(), b=(textB||'').toLowerCase();
+  for (const [w1,w2] of RESOLUTION_CONFLICTS) {
+    if ((a.includes(w1)&&!a.includes(w2))&&(!b.includes(w1)&&b.includes(w2))) return `"${w1}" vs "${w2}"`;
+    if ((!a.includes(w1)&&a.includes(w2))&&(b.includes(w1)&&!b.includes(w2))) return `"${w2}" vs "${w1}"`;
+  }
+  return null;
+}
+
+const SOURCE_SYNONYMS = {
+  'nws':'oHare','national weather service':'oHare','wunderground':'oHare',
+  'kord':'oHare','ohare':'oHare',"o'hare":'oHare',
+  'midway':'midway','senate':'senate','congress':'senate',
+};
+function normalizeSource(text) {
+  const t=(text||'').toLowerCase();
+  for (const [alias,canon] of Object.entries(SOURCE_SYNONYMS)) if(t.includes(alias)) return canon;
+  return null;
+}
+
+function extractPeriod(t) {
+  const text=(t||'').toLowerCase();
+  const year=text.match(/\b(202[0-9])\b/)?.[1];
+  const quarter=text.match(/\bq([1-4])\b/i)?.[1];
+  const months=['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+  const month=months.findIndex(m=>text.includes(m));
+  return {year,quarter,month:month>=0?month:null};
+}
+function hasPeriodConflict(titleA, titleB) {
+  const pA=extractPeriod(titleA), pB=extractPeriod(titleB);
+  if (pA.year&&pB.year&&pA.year!==pB.year) return `год: ${pA.year} vs ${pB.year}`;
+  if (pA.quarter&&pB.quarter&&pA.quarter!==pB.quarter) return `Q${pA.quarter} vs Q${pB.quarter}`;
+  if (pA.month!==null&&pB.month!==null&&pA.month!==pB.month) return `месяц ${pA.month+1} vs ${pB.month+1}`;
+  return null;
+}
+
+function jaccard(setA, setB) {
+  if (!setA.length&&!setB.length) return 1;
+  if (!setA.length||!setB.length) return 0;
+  const a=new Set(setA), b=new Set(setB);
+  const inter=[...a].filter(x=>b.has(x)).length;
+  return inter/(a.size+b.size-inter);
+}
+
 function findKalshi(q, polyYesProb) {
+  if (!q) return null;
   const exact = kalMap[norm(q)];
-  if (exact) return validateKalshiMatch(exact, polyYesProb);
+  if (exact) return validateKalshiMatch(exact, polyYesProb, q);
 
-  const qk = kws(q);
-  if (qk.length < 2) return null;
+  const qKws = kws(q);
+  if (qKws.length < 2) return null;
 
-  let best = null, bs = 0;
+  let best=null, bestScore=0;
+
   for (const km of Object.values(kalMap)) {
     if (!km.title) continue;
-
-    // Skip numeric threshold markets — they can't match binary yes/no questions
     if (isNumericThreshold(km)) continue;
+    if (hasPeriodConflict(q, km.title)) continue;
+    if (hasResolutionConflict(q+' '+(km.yes_sub_title||''), km.title+' '+(km.yes_sub_title||'')+' '+(km.no_sub_title||''))) continue;
 
-    const mk = kws(km.title);
-    if (mk.length < 1) continue;
+    const kalFull = [km.title, km.yes_sub_title||'', km.no_sub_title||''].join(' ');
+    if (hasThresholdConflict(q, kalFull)) continue;
 
-    // Count exact word matches (no substring matching — too loose)
-    const hits  = qk.filter(w => mk.includes(w));
-    const score = hits.length / Math.max(qk.length, mk.length);
+    const srcA=normalizeSource(q), srcB=normalizeSource(kalFull);
+    if (srcA&&srcB&&srcA!==srcB) continue;
 
-    // Need at least 2 exact hits AND score ≥ 0.4
-    if (hits.length >= 2 && score >= 0.4 && score > bs) {
-      best = km; bs = score;
+    const titleScore = jaccard(qKws, kws(km.title));
+    const fullScore  = jaccard(qKws, kws(kalFull));
+    const exactHits  = qKws.filter(w => kws(km.title).includes(w)).length;
+    const score      = titleScore*0.6 + fullScore*0.4;
+
+    if (exactHits>=2 && score>=0.35 && score>bestScore) {
+      best=km; bestScore=score;
     }
   }
 
-  return best ? validateKalshiMatch(best, polyYesProb) : null;
+  return best ? validateKalshiMatch(best, polyYesProb, q) : null;
 }
 
-// Validate price consistency — reject if prices differ more than 30pp
-function validateKalshiMatch(km, polyYesProb) {
-  if (polyYesProb == null) return km;
-  const ky = km.yesProb;
-  if (ky == null) return km;
-  if (Math.abs(polyYesProb - ky) > 0.30) return null;
+function validateKalshiMatch(km, polyYesProb, polyQ) {
+  if (polyYesProb==null||km.yesProb==null) return km;
+  if (Math.abs(polyYesProb-km.yesProb)>0.40) return null;
+  if (polyQ && hasResolutionConflict(polyQ, km.title)) return null;
   return km;
 }
 

@@ -1,38 +1,78 @@
-// api/odds.js — Vercel Serverless Function
-// Proxies The Odds API to keep API key secret on server side
+// api/odds.js
+// The Odds API — bookmaker odds for events
+// Free tier: 500 requests/month at https://the-odds-api.com
+// Add ODDS_API_KEY to Vercel environment variables
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=60');
 
-  const apiKey = process.env.ODDS_API_KEY;
-  if (!apiKey) {
-    return res.status(200).json({ 
-      available: false, 
-      message: 'ODDS_API_KEY not configured' 
+  const key = process.env.ODDS_API_KEY;
+  if (!key) {
+    return res.status(200).json({
+      ok: false,
+      error: 'ODDS_API_KEY not set',
+      markets: [],
+      hint: 'Get free key at https://the-odds-api.com and add to Vercel Environment Variables'
     });
   }
 
   try {
-    const sport = req.query.sport || 'politics';
-    const url = `https://api.the-odds-api.com/v4/sports/${sport}/odds/?apiKey=${apiKey}&regions=eu,uk,us&markets=h2h&oddsFormat=decimal`;
-    const resp = await fetch(url);
-    
-    if (!resp.ok) {
-      const txt = await resp.text();
-      throw new Error(`Odds API error ${resp.status}: ${txt}`);
+    // Fetch all available sports first, then get odds for key sports
+    const sports = ['americanfootball_nfl','basketball_nba','icehockey_nhl',
+                    'baseball_mlb','soccer_epl','soccer_spain_la_liga',
+                    'tennis_atp_french_open','mma_mixed_martial_arts'];
+
+    const results = [];
+    for (const sport of sports) {
+      try {
+        const r = await fetch(
+          `https://api.the-odds-api.com/v4/sports/${sport}/odds/?apiKey=${key}&regions=us&markets=h2h&oddsFormat=decimal&dateFormat=iso`,
+          { signal: AbortSignal.timeout(5000) }
+        );
+        if (!r.ok) continue;
+        const games = await r.json();
+        for (const g of games) {
+          // Get consensus probability from all bookmakers
+          const bookProbs = [];
+          for (const bookie of g.bookmakers || []) {
+            const h2h = bookie.markets?.find(m => m.key === 'h2h');
+            if (!h2h) continue;
+            // Find home team outcome
+            const home = h2h.outcomes?.find(o => o.name === g.home_team);
+            if (home?.price) bookProbs.push(1 / home.price);
+          }
+          if (!bookProbs.length) continue;
+          const avgProb = bookProbs.reduce((a,b) => a+b, 0) / bookProbs.length;
+          results.push({
+            id:          g.id,
+            sport:       sport,
+            title:       `${g.home_team} vs ${g.away_team}`,
+            home_team:   g.home_team,
+            away_team:   g.away_team,
+            commence:    g.commence_time,
+            yesProb:     Math.round(avgProb * 10000) / 10000, // home team wins
+            bookCount:   bookProbs.length,
+            bookmakers:  (g.bookmakers || []).map(b => ({
+              name: b.title,
+              prob: (() => {
+                const h2h = b.markets?.find(m => m.key === 'h2h');
+                const home = h2h?.outcomes?.find(o => o.name === g.home_team);
+                return home?.price ? Math.round((1/home.price)*10000)/10000 : null;
+              })()
+            })).filter(b => b.prob != null)
+          });
+        }
+      } catch(e) { /* skip sport */ }
     }
 
-    const data = await resp.json();
-    const remaining = resp.headers.get('x-requests-remaining');
-    
-    res.status(200).json({ 
-      available: true,
-      data,
-      requestsRemaining: remaining,
+    res.status(200).json({
+      ok: true,
+      markets: results,
+      count: results.length,
       updatedAt: new Date().toISOString()
     });
-  } catch (e) {
-    res.status(500).json({ available: false, error: e.message });
+  } catch(e) {
+    res.status(500).json({ ok: false, error: e.message, markets: [] });
   }
 }

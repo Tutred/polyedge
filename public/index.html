@@ -252,7 +252,7 @@ const REFRESH = 60;
 // ════════════════════════════════
 // STATE
 // ════════════════════════════════
-let events = [], kalMap = {}, filter = 'all', sortBy = 'arb';
+let events = [], kalMap = {}, bookMap = {}, filter = 'all', sortBy = 'arb';
 let cd = REFRESH, tmr = null, openId = null;
 
 // ════════════════════════════════
@@ -392,9 +392,25 @@ async function loadAll() {
     }
   }
 
-  setSrc('srcBook','wait','Букмекеры: нет данных');
+  // 3. Bookmakers (The Odds API)
+  setText('loadTxt', 'Загрузка букмекеров...');
+  try {
+    const r = await fetch('/api/odds', { signal: AbortSignal.timeout(10000) });
+    const j = await r.json();
+    if (j.ok && j.markets?.length) {
+      // Index by title for matching
+      j.markets.forEach(bm => { bookMap[norm(bm.title)] = bm; });
+      setSrc('srcBook','ok',`Букмекеры: ${j.markets.length} событий ✓`);
+    } else {
+      setSrc('srcBook','wait', j.error === 'ODDS_API_KEY not set'
+        ? 'Букмекеры: нужен API ключ → the-odds-api.com'
+        : `Букмекеры: ${j.error || 'нет данных'}`);
+    }
+  } catch(e) {
+    setSrc('srcBook','wait','Букмекеры: нет данных');
+  }
 
-  // 3. Build
+  // 4. Build
   events = poly.map(buildEv).filter(Boolean);
   render();
   showScr('app');
@@ -410,6 +426,10 @@ function buildEv(m) {
   if (!p || p < 0.02 || p > 0.98) return null;
 
   const km = findKalshi(m.question, p);
+
+  // Find bookmaker match by title similarity
+  const bm = findBook(m.question);
+  const bookAvg = bm?.yesProb ?? null;
 
   const py = p;
   const pn = 1 - p;
@@ -505,7 +525,7 @@ function buildEv(m) {
     id: m.id, q: m.question,
     yL: yLabel, nL: nLabel,
     cat: guessCat(m.question, m.tags),
-    py, pn, ky, kn, kal: km, arb,
+    py, pn, ky, kn, kal: km, bookAvg, bm, arb,
     vol: m.volume || 0, volS: fmtVol(m.volume || 0),
     end: m.endDate ? new Date(m.endDate).toLocaleDateString('ru-RU',{day:'numeric',month:'short'}) : '—',
     url: m.url || (m.eventSlug && m.slug
@@ -528,8 +548,15 @@ function kalshiUrl(km) {
   return 'https://kalshi.com';
 }
 function norm(t){ return (t||'').toLowerCase().replace(/[^a-z0-9 ]/g,' ').replace(/\s+/g,' ').trim(); }
-const STOP = new Set(['will','the','a','an','in','on','at','to','of','for','be','is','are','was','by','or','and','that','this','with','have','not','its','per','win','wins']);
+const STOP = new Set(['will','the','a','an','in','on','at','to','of','for','be','is','are','was','by','or','and','that','this','with','have','not','its','per','win','wins','most','next','more','than','over','under','least','first']);
 function kws(t){ return norm(t).split(' ').filter(w=>w.length>3&&!STOP.has(w)); }
+
+// Returns true if Kalshi market looks like a numeric threshold market
+// e.g. "Above 120", "Over 50%", "At least 3" — these can't match binary yes/no questions
+function isNumericThreshold(km) {
+  const t = (km.title || '') + ' ' + (km.yes_sub_title || '') + ' ' + (km.no_sub_title || '');
+  return /\b(above|below|over|under|at least|more than|fewer|higher|lower|between|\d+\s*%|\d+\s*seats|\d+\s*points|\d+\s*degrees?)\b/i.test(t);
+}
 
 function findKalshi(q, polyYesProb) {
   const exact = kalMap[norm(q)];
@@ -541,12 +568,19 @@ function findKalshi(q, polyYesProb) {
   let best = null, bs = 0;
   for (const km of Object.values(kalMap)) {
     if (!km.title) continue;
+
+    // Skip numeric threshold markets — they can't match binary yes/no questions
+    if (isNumericThreshold(km)) continue;
+
     const mk = kws(km.title);
     if (mk.length < 1) continue;
-    const hits  = qk.filter(w => mk.some(k2 => k2===w || k2.includes(w) || w.includes(k2)));
-    // Require at least 2 hits AND score ≥ 0.35 (stricter than before)
+
+    // Count exact word matches (no substring matching — too loose)
+    const hits  = qk.filter(w => mk.includes(w));
     const score = hits.length / Math.max(qk.length, mk.length);
-    if (hits.length >= 2 && score >= 0.35 && score > bs) {
+
+    // Need at least 2 exact hits AND score ≥ 0.4
+    if (hits.length >= 2 && score >= 0.4 && score > bs) {
       best = km; bs = score;
     }
   }
@@ -554,21 +588,30 @@ function findKalshi(q, polyYesProb) {
   return best ? validateKalshiMatch(best, polyYesProb) : null;
 }
 
-// Validate that Kalshi prices are consistent with Polymarket
-// If prices differ by more than 35pp → likely different events → reject match
+// Validate price consistency — reject if prices differ more than 30pp
 function validateKalshiMatch(km, polyYesProb) {
   if (polyYesProb == null) return km;
   const ky = km.yesProb;
   if (ky == null) return km;
-  const diff = Math.abs(polyYesProb - ky);
-  // If diff > 35%, prices are too inconsistent → bad match
-  if (diff > 0.35) return null;
+  if (Math.abs(polyYesProb - ky) > 0.30) return null;
   return km;
 }
 
-// ════════════════════════════════
-// RENDER
-// ════════════════════════════════
+// Find bookmaker market matching Polymarket question
+function findBook(q) {
+  const exact = bookMap[norm(q)];
+  if (exact) return exact;
+  const qk = kws(q);
+  if (qk.length < 2) return null;
+  let best = null, bs = 0;
+  for (const bm of Object.values(bookMap)) {
+    const mk = kws(bm.title || '');
+    const hits = qk.filter(w => mk.includes(w));
+    const score = hits.length / Math.max(qk.length, mk.length);
+    if (hits.length >= 2 && score >= 0.4 && score > bs) { best = bm; bs = score; }
+  }
+  return best;
+}
 function render() {
   let list = [...events];
   if      (filter==='arb')  list = list.filter(e=>e.arb?.type==='arb');
@@ -602,7 +645,9 @@ function makeCard(ev, i) {
   const kalCell  = ev.ky!=null
     ? priceCell('kalshi','Kalshi', ev.ky, ev.kn, ev.yL, ev.nL)
     : `<div class="pc kalshi"><div class="pc-src">Kalshi</div><div class="pc-nd">нет данных</div></div>`;
-  const bookCell = `<div class="pc book"><div class="pc-src">Ср. 20 букмекеров</div><div class="pc-nd">нет данных</div></div>`;
+  const bookCell = ev.bookAvg != null
+    ? priceCell('book', 'Ср. букмекеры', ev.bookAvg, 1 - ev.bookAvg, ev.yL, ev.nL)
+    : `<div class="pc book"><div class="pc-src">Ср. букмекеры</div><div class="pc-nd">нет данных</div></div>`;
 
   // Spread cell
   let spread;

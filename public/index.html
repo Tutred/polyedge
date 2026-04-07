@@ -409,7 +409,7 @@ function buildEv(m) {
   const p = m.yesProb;
   if (!p || p < 0.02 || p > 0.98) return null;
 
-  const km = findKalshi(m.question);
+  const km = findKalshi(m.question, p);
 
   const py = p;
   const pn = 1 - p;
@@ -528,22 +528,42 @@ function kalshiUrl(km) {
   return 'https://kalshi.com';
 }
 function norm(t){ return (t||'').toLowerCase().replace(/[^a-z0-9 ]/g,' ').replace(/\s+/g,' ').trim(); }
-const STOP = new Set(['will','the','a','an','in','on','at','to','of','for','be','is','are','was','by','or','and','that','this','with','have','not','its','per']);
-function kws(t){ return norm(t).split(' ').filter(w=>w.length>2&&!STOP.has(w)); }
-function findKalshi(q) {
+const STOP = new Set(['will','the','a','an','in','on','at','to','of','for','be','is','are','was','by','or','and','that','this','with','have','not','its','per','win','wins']);
+function kws(t){ return norm(t).split(' ').filter(w=>w.length>3&&!STOP.has(w)); }
+
+function findKalshi(q, polyYesProb) {
   const exact = kalMap[norm(q)];
-  if (exact) return exact;
+  if (exact) return validateKalshiMatch(exact, polyYesProb);
+
   const qk = kws(q);
-  if (!qk.length) return null;
-  let best=null,bs=0;
+  if (qk.length < 2) return null;
+
+  let best = null, bs = 0;
   for (const km of Object.values(kalMap)) {
     if (!km.title) continue;
     const mk = kws(km.title);
-    const hits = qk.filter(w => mk.some(kw => kw.includes(w)||w.includes(kw)));
-    const score = hits.length / Math.max(qk.length, mk.length, 1);
-    if (hits.length>=2 && score>bs && score>=0.25) { best=km; bs=score; }
+    if (mk.length < 1) continue;
+    const hits  = qk.filter(w => mk.some(k2 => k2===w || k2.includes(w) || w.includes(k2)));
+    // Require at least 2 hits AND score ≥ 0.35 (stricter than before)
+    const score = hits.length / Math.max(qk.length, mk.length);
+    if (hits.length >= 2 && score >= 0.35 && score > bs) {
+      best = km; bs = score;
+    }
   }
-  return best;
+
+  return best ? validateKalshiMatch(best, polyYesProb) : null;
+}
+
+// Validate that Kalshi prices are consistent with Polymarket
+// If prices differ by more than 35pp → likely different events → reject match
+function validateKalshiMatch(km, polyYesProb) {
+  if (polyYesProb == null) return km;
+  const ky = km.yesProb;
+  if (ky == null) return km;
+  const diff = Math.abs(polyYesProb - ky);
+  // If diff > 35%, prices are too inconsistent → bad match
+  if (diff > 0.35) return null;
+  return km;
 }
 
 // ════════════════════════════════

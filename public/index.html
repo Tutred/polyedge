@@ -546,9 +546,18 @@ function buildGroupedEvents(polyMarkets) {
       .map(m => {
         if (!m.yesProb || m.yesProb < 0.005) return null;
         const py = m.yesProb;
-        const km = findKalshi(m.question, py);
-        const ky = km?.yesProb ?? null;
         const pn = 1 - py;
+
+        // For multi-candidate events, the candidate name is in outcomes[0]
+        // e.g. "Gavin Newsom" — use this to search Kalshi, not the full question
+        const candidateName = m.outcomes?.[0] || '';
+        const searchQuery   = candidateName.length > 3 ? candidateName : m.question;
+
+        // Try candidate name first, then full question
+        let km = findKalshi(searchQuery, py);
+        if (!km && searchQuery !== m.question) km = findKalshi(m.question, py);
+
+        const ky = km?.yesProb ?? null;
         const kn = ky != null ? 1 - ky : null;
 
         // Arbitrage calc per candidate
@@ -578,10 +587,10 @@ function buildGroupedEvents(polyMarkets) {
         }
 
         return {
-          id:      m.id,
-          name:    m.outcomes?.[0] || m.question, // candidate name
+          id:       m.id,
+          name:     candidateName || m.outcomes?.[0] || m.question,
           question: m.question,
-          url:     m.url,
+          url:      m.url,
           py, pn, ky, kn,
           kal: km,
           arb,
@@ -853,7 +862,24 @@ function findKalshi(q, polyYesProb) {
   if (exact) return validateKalshiMatch(exact, polyYesProb, q);
 
   const qKws = kws(q);
-  if (qKws.length < 2) return null;
+
+  // Special case: short query (1-2 words = candidate name like "Gavin Newsom")
+  // Search for Kalshi market whose title CONTAINS this name
+  if (qKws.length < 2) {
+    const qNorm = norm(q);
+    let bestShort = null, bestShortScore = 0;
+    for (const km of Object.values(kalMap)) {
+      if (!km.title) continue;
+      if (isNumericThreshold(km)) continue;
+      const kNorm = norm(km.title);
+      // Check if Kalshi title contains the candidate name
+      if (kNorm.includes(qNorm) || qNorm.includes(kNorm)) {
+        const score = qNorm.length / Math.max(qNorm.length, kNorm.length);
+        if (score > bestShortScore) { bestShort = km; bestShortScore = score; }
+      }
+    }
+    return bestShort ? validateKalshiMatch(bestShort, polyYesProb, q) : null;
+  }
 
   let best=null, bestScore=0;
 

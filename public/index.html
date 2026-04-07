@@ -139,8 +139,19 @@ main{max-width:1440px;margin:0 auto;padding:20px 28px 80px}
 .pc-yes-val{font-family:var(--mono);font-size:18px;font-weight:700;line-height:1;color:var(--text)}
 .pc.poly   .pc-yes-val{color:var(--poly)}
 .pc.kalshi .pc-yes-val{color:var(--kalshi)}
-.pc-yes-odds{font-family:var(--mono);font-size:10px;color:var(--muted2)}
-.pc-yes-name{font-family:var(--sans);font-size:10px;color:var(--muted2);max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* price cell rows */
+.pc-row{display:flex;align-items:baseline;gap:5px;margin-bottom:3px}
+.pc-outcome-name{font-family:var(--sans);font-size:11px;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pc-val-main{font-family:var(--mono);font-size:20px;font-weight:700;line-height:1;flex-shrink:0}
+.pc.poly   .pc-val-main{color:var(--poly)}
+.pc.kalshi .pc-val-main{color:var(--kalshi)}
+.pc-val-sub{font-family:var(--mono);font-size:13px;font-weight:600;color:var(--muted2);flex-shrink:0}
+.pc-odds-small{font-family:var(--mono);font-size:10px;color:var(--muted);flex-shrink:0}
+/* action links in group table */
+.act-link{display:inline-block;font-family:var(--mono);font-size:10px;text-decoration:none;padding:2px 7px;border-radius:2px;border:1px solid;white-space:nowrap;margin:1px 2px}
+.act-link:hover{opacity:1}
+.act-poly{color:var(--poly);border-color:rgba(0,194,255,.3);opacity:.8}
+.act-kal {color:var(--kalshi);border-color:rgba(155,108,255,.3);opacity:.8}
 
 /* NO row */
 .pc-no{display:flex;align-items:baseline;gap:5px}
@@ -958,55 +969,86 @@ function makeCard(ev, i) {
   return card;
 }
 
-// ════════════════════════════════
-// GROUP CARD — multi-candidate event
-// Shows all candidates with Poly vs Kalshi prices in one card
-// ════════════════════════════════
 function makeGroupCard(ev, i) {
   const isArb  = ev.arb?.type==='arb';
   const isDiff = ev.arb?.type==='diff';
-  const hasKal = ev.candidates.some(c => c.kal);
 
-  // Spread badge
+  // Only show candidates that have Kalshi data AND divergence ≥1%
+  const visibleCandidates = ev.candidates.filter(c => {
+    if (!c.kal) return false; // no Kalshi data → skip
+    const diff = Math.abs(c.py - c.ky);
+    const hasArb = c.arb?.type === 'arb';
+    return hasArb || diff >= 0.01; // show arb OR ≥1% diff
+  });
+
+  // If no candidates have divergence → render as simple card without table
+  if (visibleCandidates.length === 0) {
+    const topC = ev.candidates[0];
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.style.animationDelay = Math.min(i*.025,.6)+'s';
+    card.dataset.id = ev.id;
+    card.innerHTML = `
+      <div class="crow" style="cursor:default">
+        <div class="e-info" style="grid-column:1/-1">
+          <div class="etitle">${ev.q}</div>
+          <div class="emeta">
+            <span class="cat-tag">${ev.cat}</span>
+            <span class="vol-tag">VOL: ${ev.volS} · до ${ev.end} · ${ev.candidates.length} кандидатов</span>
+            <a class="qlink qlink-poly" href="${ev.url}" target="_blank" onclick="event.stopPropagation()">↗ Polymarket</a>
+            ${ev.kalEventUrl ? `<a class="qlink qlink-kal" href="${ev.kalEventUrl}" target="_blank" onclick="event.stopPropagation()">↗ Kalshi</a>` : ''}
+            <span class="stag st-none" style="margin-left:6px">Нет расхождений</span>
+          </div>
+        </div>
+      </div>`;
+    return card;
+  }
+
+  // Spread badge from best candidate
   let spreadBadge;
   if (isArb)       spreadBadge = `<span class="stag st-arb">+${ev.arb.roi.toFixed(1)}% ROI</span>`;
   else if (isDiff) spreadBadge = `<span class="stag st-diff">↕ ${pct(ev.arb.diff)}</span>`;
-  else             spreadBadge = `<span class="stag st-none">Нет расхождений</span>`;
+  else             spreadBadge = `<span class="stag st-none">≈</span>`;
 
-  // Candidate rows
-  const rows = ev.candidates.map(c => {
-    const hasKalC = c.kal != null;
-    const diff = hasKalC ? (c.py - c.ky) : null;
-    const isArbC = c.arb?.type === 'arb';
+  // Build rows — only for candidates with divergence
+  const rows = visibleCandidates.map(c => {
+    const isArbC  = c.arb?.type === 'arb';
     const isDiffC = c.arb?.type === 'diff';
+    const d = c.py - c.ky;
 
-    let diffCell = '';
+    let diffCell;
     if (isArbC) {
       diffCell = `<span class="cd-arb">🟢 +${c.arb.roi.toFixed(1)}%</span>`;
-    } else if (isDiffC && Math.abs(c.py - c.ky) >= 0.01) {
-      const d = c.py - c.ky;
+    } else {
       diffCell = `<span class="cd-diff ${d>0?'cd-pos':'cd-neg'}">${d>0?'▲':'▼'} ${pct(Math.abs(d))}</span>`;
-    } else if (hasKalC) {
-      diffCell = `<span class="cd-same">≈</span>`;
     }
 
-    const kalCell = hasKalC
-      ? `<span class="ct-kal">${Math.round(c.ky*100)}% <small>${dec(c.ky)}</small></span>`
-      : `<span class="ct-nd">—</span>`;
-
-    const actionCell = isArbC
-      ? `<span class="ct-action arb-action">
-          <a href="${c.url}" target="_blank" onclick="event.stopPropagation()">Poly ${c.arb.polyBuy}</a>
-          ${c.kal?.url ? `+ <a href="${kalshiUrl(c.kal)}" target="_blank" onclick="event.stopPropagation()">Kalshi ${c.arb.kalBuy}</a>` : ''}
-        </span>`
-      : '';
+    // Action — direct links with what to buy
+    let actionCell = '';
+    if (isArbC) {
+      const polyLabel = c.arb.polyBuy === 'YES' ? c.name : 'NO';
+      const kalLabel  = c.arb.kalBuy  === 'YES' ? c.name : 'NO';
+      actionCell = `
+        <a class="act-link act-poly" href="${c.url}" target="_blank" onclick="event.stopPropagation()">
+          Poly: ${polyLabel} (${Math.round(c.arb.polyPrice*100)}%)
+        </a>
+        ${c.kal?.url ? `<a class="act-link act-kal" href="${kalshiUrl(c.kal)}" target="_blank" onclick="event.stopPropagation()">
+          Kalshi: ${kalLabel} (${Math.round(c.arb.kalPrice*100)}%)
+        </a>` : ''}`;
+    } else {
+      // Just divergence — show which side is cheaper where
+      const cheaperPoly  = d > 0; // Poly is higher → buy on Kalshi
+      actionCell = cheaperPoly
+        ? `<a class="act-link act-kal" href="${c.kal?.url ? kalshiUrl(c.kal) : '#'}" target="_blank" onclick="event.stopPropagation()">Дешевле на Kalshi (${Math.round(c.ky*100)}%)</a>`
+        : `<a class="act-link act-poly" href="${c.url}" target="_blank" onclick="event.stopPropagation()">Дешевле на Poly (${Math.round(c.py*100)}%)</a>`;
+    }
 
     return `<tr class="crow${isArbC?' crow-arb':isDiffC?' crow-diff':''}">
       <td class="ct-name">${c.name}</td>
       <td class="ct-poly">${Math.round(c.py*100)}% <small>${dec(c.py)}</small></td>
-      <td>${kalCell}</td>
+      <td class="ct-kal">${Math.round(c.ky*100)}% <small>${dec(c.ky)}</small></td>
       <td>${diffCell}</td>
-      <td>${actionCell}</td>
+      <td class="ct-action">${actionCell}</td>
     </tr>`;
   }).join('');
 
@@ -1015,12 +1057,12 @@ function makeGroupCard(ev, i) {
   card.style.animationDelay = Math.min(i*.025,.6)+'s';
   card.dataset.id = ev.id;
   card.innerHTML = `
-    <div class="group-head" onclick="toggleDet('${ev.id}')">
+    <div class="group-head">
       <div class="e-info">
         <div class="etitle">${ev.q}</div>
         <div class="emeta">
           <span class="cat-tag">${ev.cat}</span>
-          <span class="vol-tag">VOL: ${ev.volS} · до ${ev.end} · ${ev.candidates.length} кандидатов</span>
+          <span class="vol-tag">VOL: ${ev.volS} · до ${ev.end}</span>
           <a class="qlink qlink-poly" href="${ev.url}" target="_blank" onclick="event.stopPropagation()">↗ Polymarket</a>
           ${ev.kalEventUrl ? `<a class="qlink qlink-kal" href="${ev.kalEventUrl}" target="_blank" onclick="event.stopPropagation()">↗ Kalshi</a>` : ''}
         </div>
@@ -1029,36 +1071,32 @@ function makeGroupCard(ev, i) {
     </div>
     <div class="group-table-wrap">
       <table class="group-table">
-        <thead>
-          <tr>
-            <th>Кандидат</th>
-            <th style="color:var(--poly)">Polymarket</th>
-            <th style="color:var(--kalshi)">${hasKal?'Kalshi':'Kalshi'}</th>
-            <th>Разница</th>
-            <th>Действие</th>
-          </tr>
-        </thead>
+        <thead><tr>
+          <th>Кандидат / Исход</th>
+          <th style="color:var(--poly)">Polymarket</th>
+          <th style="color:var(--kalshi)">Kalshi</th>
+          <th>Разница</th>
+          <th>Где купить</th>
+        </tr></thead>
         <tbody>${rows}</tbody>
       </table>
-    </div>
-    <div class="detail" id="det-${ev.id}" style="display:none"></div>`;
+    </div>`;
   return card;
 }
 
-// Price cell — показывает реальные имена исходов (не просто "Yes"/"No")
+// Price cell — имя исхода + процент на одной строке
 function priceCell(cls, src, yes, no, yL, nL) {
   return `<div class="pc ${cls}">
     <div class="pc-src">${src}</div>
-    <div class="pc-yes">
-      <span class="pc-yes-lbl" title="YES">✓</span>
-      <span class="pc-yes-name">${yL}</span>
-      <span class="pc-yes-val">${Math.round(yes*100)}%</span>
-      <span class="pc-yes-odds">${dec(yes)}</span>
+    <div class="pc-row pc-yes-row">
+      <span class="pc-outcome-name">${yL}</span>
+      <span class="pc-val-main">${Math.round(yes*100)}%</span>
+      <span class="pc-odds-small">${dec(yes)}</span>
     </div>
-    <div class="pc-no">
-      <span class="pc-no-lbl" title="NO">✗</span>
-      <span class="pc-yes-name" style="color:var(--muted2)">${nL}</span>
-      <span class="pc-no-val">${Math.round(no*100)}% · ${dec(no)}</span>
+    <div class="pc-row pc-no-row">
+      <span class="pc-outcome-name" style="color:var(--muted2)">${nL}</span>
+      <span class="pc-val-sub">${Math.round(no*100)}%</span>
+      <span class="pc-odds-small">${dec(no)}</span>
     </div>
   </div>`;
 }

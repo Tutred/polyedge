@@ -204,6 +204,7 @@ main{max-width:1440px;margin:0 auto;padding:20px 28px 80px}
   <div class="src s-wait" id="srcPoly">  <div class="sd" style="background:var(--yellow)"></div>Polymarket: загрузка...</div>
   <div class="src s-wait" id="srcKalshi"><div class="sd" style="background:var(--yellow)"></div>Kalshi: загрузка...</div>
   <div class="src s-wait" id="srcBook">  <div class="sd" style="background:var(--yellow)"></div>Букмекеры: нет данных</div>
+  <div class="src s-wait" id="srcAI">   <div class="sd" style="background:var(--yellow)"></div>DeepSeek: нет ключа</div>
 </div>
 
 <div class="fbar">
@@ -252,7 +253,7 @@ const REFRESH = 60;
 // ════════════════════════════════
 // STATE
 // ════════════════════════════════
-let events = [], kalMap = {}, bookMap = {}, filter = 'all', sortBy = 'arb';
+let events = [], kalMap = {}, bookMap = {}, deepseekMatches = {}, filter = 'all', sortBy = 'arb';
 let cd = REFRESH, tmr = null, openId = null;
 
 // ════════════════════════════════
@@ -410,12 +411,73 @@ async function loadAll() {
     setSrc('srcBook','wait','Букмекеры: нет данных');
   }
 
-  // 4. Build
+  // 4. Build events with basic keyword matching first (instant)
   events = poly.map(buildEv).filter(Boolean);
   render();
   showScr('app');
   setText('updR', `Обновлено ${new Date().toLocaleTimeString('ru-RU')} · обновление: `);
-  toast(`✓ ${events.length} событий, ${events.filter(e=>e.kal).length} с Kalshi`, 'ok');
+  toast(`✓ ${events.length} событий загружено`, 'ok');
+
+  // 5. DeepSeek semantic matching (async, upgrades results in background)
+  if (Object.keys(kalMap).length > 0) {
+    setText('loadTxt', 'DeepSeek анализирует совпадения...');
+    runDeepSeekMatch(poly, Object.values(kalMap));
+  }
+}
+
+// ════════════════════════════════
+// DEEPSEEK SEMANTIC MATCHING
+// Runs in background after initial render
+// ════════════════════════════════
+async function runDeepSeekMatch(polyMarkets, kalshiMarkets) {
+  setSrc('srcAI', 'wait', 'DeepSeek: анализирует...');
+  try {
+    const r = await fetch('/api/match', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ polyMarkets, kalshiMarkets }),
+      signal: AbortSignal.timeout(60000),
+    });
+    const j = await r.json();
+
+    if (!j.ok) {
+      if (j.error === 'DEEPSEEK_API_KEY not set') {
+        setSrc('srcAI', 'wait', 'DeepSeek: нужен ключ → platform.deepseek.com');
+      } else {
+        setSrc('srcAI', 'err', `DeepSeek: ${j.error}`);
+      }
+      return;
+    }
+
+    if (!j.matches?.length) {
+      setSrc('srcAI', 'ok', 'DeepSeek: нет совпадений');
+      return;
+    }
+
+    deepseekMatches = {};
+    j.matches.forEach(m => { deepseekMatches[m.polyId] = m; });
+
+    events.forEach(ev => {
+      const dm = deepseekMatches[ev.id];
+      if (!dm) return;
+      const km = kalMap[dm.kalshiTicker?.toLowerCase()] ||
+                 Object.values(kalMap).find(k => k.ticker === dm.kalshiTicker);
+      if (!km) return;
+      ev.kal = km;
+      ev.ky  = km.yesProb;
+      ev.kn  = 1 - km.yesProb;
+      if (dm.arb) ev.arb = dm.arb;
+    });
+
+    render();
+    const arbCount = events.filter(e => e.arb?.type === 'arb').length;
+    setSrc('srcAI', 'ok', `DeepSeek: ${j.matches.length} совпадений · ${arbCount} арбитражей ✓`);
+    toast(`🤖 DeepSeek нашёл ${arbCount} арбитражей`, 'ok');
+
+  } catch(e) {
+    setSrc('srcAI', 'err', `DeepSeek: ${e.message}`);
+    console.warn('DeepSeek match failed:', e.message);
+  }
 }
 
 // ════════════════════════════════

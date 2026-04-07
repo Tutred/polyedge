@@ -94,7 +94,33 @@ main{max-width:1440px;margin:0 auto;padding:20px 28px 80px}
 .etitle{font-size:13px;font-weight:600;line-height:1.4;margin-bottom:4px}
 .emeta{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:4px}
 .cat-tag{font-family:var(--mono);font-size:8px;text-transform:uppercase;letter-spacing:1px;padding:1px 7px;border-radius:2px;background:rgba(255,255,255,.05);color:var(--muted2);border:1px solid var(--border)}
-.vol-tag{font-family:var(--mono);font-size:8px;color:var(--muted)}
+/* ── GROUP CARD ── */
+.group-card { cursor: default; }
+.group-head { display:flex; justify-content:space-between; align-items:flex-start; padding:13px 16px; cursor:pointer; gap:12px; }
+.group-badge { flex-shrink:0; }
+.group-table-wrap { overflow-x:auto; border-top:1px solid var(--border); }
+.group-table { width:100%; border-collapse:collapse; font-family:var(--mono); font-size:12px; }
+.group-table thead tr { background:rgba(0,0,0,.2); }
+.group-table th { padding:7px 12px; text-align:left; font-size:9px; text-transform:uppercase; letter-spacing:1px; color:var(--muted); font-weight:600; white-space:nowrap; }
+.group-table .crow { border-top:1px solid var(--border); transition:background .15s; }
+.group-table .crow:hover { background:rgba(255,255,255,.03); }
+.group-table .crow-arb  { background:rgba(34,197,94,.04); }
+.group-table .crow-diff { background:rgba(245,158,11,.03); }
+.group-table td { padding:9px 12px; vertical-align:middle; }
+.ct-name { font-weight:600; font-size:13px; font-family:var(--sans); color:var(--text); max-width:200px; }
+.ct-poly  { color:var(--poly); font-weight:700; font-size:13px; }
+.ct-kal   { color:var(--kalshi); font-weight:700; font-size:13px; }
+.ct-nd    { color:var(--muted); font-size:12px; }
+.ct-poly small, .ct-kal small { font-size:10px; color:var(--muted2); margin-left:3px; font-weight:400; }
+.cd-arb   { color:var(--green);  font-weight:700; font-size:11px; }
+.cd-diff  { font-weight:600; font-size:11px; }
+.cd-pos   { color:var(--poly); }
+.cd-neg   { color:var(--kalshi); }
+.cd-same  { color:var(--muted); }
+.ct-action { font-size:10px; }
+.arb-action a { color:var(--green); text-decoration:none; font-weight:600; padding:2px 6px; border:1px solid rgba(34,197,94,.3); border-radius:2px; margin:0 2px; }
+.arb-action a:hover { background:rgba(34,197,94,.1); }
+.group-table tfoot td { padding:8px 12px; font-size:10px; color:var(--muted); border-top:1px solid var(--border); }
 .qlink{font-family:var(--mono);font-size:9px;text-decoration:none;padding:1px 8px;border-radius:2px;border:1px solid;transition:opacity .15s;white-space:nowrap}
 .qlink:hover{opacity:1 !important}
 .qlink-poly{color:var(--poly);border-color:rgba(0,194,255,.25);opacity:.7}
@@ -411,15 +437,15 @@ async function loadAll() {
     setSrc('srcBook','wait','Букмекеры: нет данных');
   }
 
-  // 4. Build events with basic keyword matching first (instant)
-  events = poly.map(buildEv).filter(Boolean);
+  // 4. Build events — group Polymarket markets by eventSlug first
+  events = buildGroupedEvents(poly);
   render();
   showScr('app');
   setText('updR', `Обновлено ${new Date().toLocaleTimeString('ru-RU')} · обновление: `);
   toast(`✓ ${events.length} событий загружено`, 'ok');
 
   // 5. Матчинг встроен в buildEv через rule-aware findKalshi
-  const kalMatched = events.filter(e => e.kal).length;
+  const kalMatched = events.filter(e => e.candidates?.some(c=>c.kal) || e.kal).length;
   setSrc('srcAI', 'ok', `Матчинг: ${kalMatched} совпадений с Kalshi ✓`);
   setText('hKal', kalMatched);
 }
@@ -480,7 +506,128 @@ async function runDeepSeekMatch(polyMarkets, kalshiMarkets) {
 }
 
 // ════════════════════════════════
-// BUILD EVENT
+// GROUP EVENTS
+// Groups Polymarket markets by eventSlug, finds Kalshi matches for each candidate
+// ════════════════════════════════
+function buildGroupedEvents(polyMarkets) {
+  // Group by eventSlug
+  const groups = {};
+  for (const m of polyMarkets) {
+    const key = m.eventSlug || m.id;
+    if (!groups[key]) groups[key] = { slug: key, title: m.eventTitle || m.question, markets: [], eventUrl: m.eventUrl || m.url };
+    groups[key].markets.push(m);
+  }
+
+  const result = [];
+
+  for (const grp of Object.values(groups)) {
+    const mList = grp.markets;
+
+    // Single market event → use regular buildEv
+    if (mList.length === 1) {
+      const ev = buildEv(mList[0]);
+      if (ev) result.push(ev);
+      continue;
+    }
+
+    // Multi-market event (multiple candidates) → build grouped card
+    const candidates = mList
+      .map(m => {
+        if (!m.yesProb || m.yesProb < 0.005) return null;
+        const py = m.yesProb;
+        const km = findKalshi(m.question, py);
+        const ky = km?.yesProb ?? null;
+        const pn = 1 - py;
+        const kn = ky != null ? 1 - ky : null;
+
+        // Arbitrage calc per candidate
+        let arb = null;
+        if (ky != null) {
+          const costA = py + kn, costB = pn + ky;
+          const roiA = costA < 1 ? ((1-costA)/costA)*100 : 0;
+          const roiB = costB < 1 ? ((1-costB)/costB)*100 : 0;
+          const validA = costA < 0.985 && roiA >= 0.3 && roiA <= 20;
+          const validB = costB < 0.985 && roiB >= 0.3 && roiB <= 20;
+          if (validA || validB) {
+            const useA = validA && (!validB || costA <= costB);
+            const cost = useA ? costA : costB;
+            arb = {
+              type: 'arb', cost, profit: 1-cost, roi: ((1-cost)/cost)*100,
+              polyBuy:     useA ? 'YES' : 'NO',
+              kalBuy:      useA ? 'NO'  : 'YES',
+              polyPrice:   useA ? py   : pn,
+              kalPrice:    useA ? kn   : ky,
+              polyOutcome: m.outcomes?.[0]||'Yes',
+              kalOutcome:  useA ? (km.no_sub_title||m.outcomes?.[1]||'No') : (km.yes_sub_title||m.outcomes?.[0]||'Yes'),
+            };
+          } else {
+            const diff = Math.abs(py - ky);
+            if (diff >= 0.01) arb = { type:'diff', diff, higher: py>ky?'Poly':'Kalshi', lower: py>ky?'Kalshi':'Poly' };
+          }
+        }
+
+        return {
+          id:      m.id,
+          name:    m.outcomes?.[0] || m.question, // candidate name
+          question: m.question,
+          url:     m.url,
+          py, pn, ky, kn,
+          kal: km,
+          arb,
+          vol: m.volume || 0,
+        };
+      })
+      .filter(Boolean)
+      .sort((a,b) => b.py - a.py); // sort by Poly probability desc
+
+    if (!candidates.length) continue;
+
+    // Max arb across all candidates
+    const maxArb = candidates.reduce((best, c) => {
+      if (!c.arb) return best;
+      if (!best) return c.arb;
+      const cVal = c.arb.type==='arb' ? c.arb.roi : (c.arb.type==='diff' ? c.arb.diff*100 : 0);
+      const bVal = best.type==='arb' ? best.roi : (best.type==='diff' ? best.diff*100 : 0);
+      return cVal > bVal ? c.arb : best;
+    }, null);
+
+    const hasAnyKalshi = candidates.some(c => c.kal);
+    const totalVol = candidates.reduce((s,c) => s+c.vol, 0);
+    const tags = mList[0]?.tags || [];
+
+    result.push({
+      id:         grp.slug,
+      isGroup:    true,              // ← flag for renderer
+      q:          grp.title,
+      candidates,
+      arb:        maxArb,
+      kal:        hasAnyKalshi ? {} : null,
+      cat:        guessCat(grp.title, tags),
+      vol:        totalVol,
+      volS:       fmtVol(totalVol),
+      end:        mList[0]?.endDate ? new Date(mList[0].endDate).toLocaleDateString('ru-RU',{day:'numeric',month:'short'}) : '—',
+      url:        grp.eventUrl,
+      kalEventUrl: hasAnyKalshi ? kalshiEventUrl(candidates) : null,
+      // for compat with single-event render
+      py: candidates[0]?.py, pn: candidates[0]?.pn,
+      ky: candidates[0]?.ky, kn: candidates[0]?.kn,
+      yL: 'Да', nL: 'Нет',
+    });
+  }
+
+  return result.filter(Boolean);
+}
+
+// Get Kalshi event URL from first matched candidate
+function kalshiEventUrl(candidates) {
+  for (const c of candidates) {
+    if (c.kal?.url) return c.kal.url;
+  }
+  return null;
+}
+
+// ════════════════════════════════
+// BUILD EVENT (single market)
 // ════════════════════════════════
 function buildEv(m) {
   const p = m.yesProb;
@@ -771,10 +918,12 @@ function render() {
 }
 
 function makeCard(ev, i) {
+  // Route to group renderer for multi-candidate events
+  if (ev.isGroup) return makeGroupCard(ev, i);
+
   const isArb  = ev.arb?.type==='arb';
   const isDiff = ev.arb?.type==='diff';
 
-  // Price cells
   const polyCell = priceCell('poly', 'Polymarket', ev.py, ev.pn, ev.yL, ev.nL);
   const kalCell  = ev.ky!=null
     ? priceCell('kalshi','Kalshi', ev.ky, ev.kn, ev.yL, ev.nL)
@@ -783,21 +932,15 @@ function makeCard(ev, i) {
     ? priceCell('book', 'Ср. букмекеры', ev.bookAvg, 1 - ev.bookAvg, ev.yL, ev.nL)
     : `<div class="pc book"><div class="pc-src">Ср. букмекеры</div><div class="pc-nd">нет данных</div></div>`;
 
-  // Spread cell
   let spread;
-  if (isArb) {
-    spread = `<div class="sc"><div class="stag st-arb">+${ev.arb.roi.toFixed(1)}% ROI</div><div class="ssub">Арбитраж</div></div>`;
-  } else if (isDiff) {
-    spread = `<div class="sc"><div class="stag st-diff">↕ ${pct(ev.arb.diff)}</div><div class="ssub">Расхождение</div></div>`;
-  } else {
-    spread = `<div class="sc"><div class="stag st-none">≈ 0%</div><div class="ssub">Согласуются</div></div>`;
-  }
+  if (isArb)      spread = `<div class="sc"><div class="stag st-arb">+${ev.arb.roi.toFixed(1)}% ROI</div><div class="ssub">Арбитраж</div></div>`;
+  else if (isDiff) spread = `<div class="sc"><div class="stag st-diff">↕ ${pct(ev.arb.diff)}</div><div class="ssub">Расхождение</div></div>`;
+  else             spread = `<div class="sc"><div class="stag st-none">≈ 0%</div><div class="ssub">Согласуются</div></div>`;
 
   const card = document.createElement('div');
   card.className = `card${isArb?' arb':isDiff?' diff':''}`;
   card.style.animationDelay = Math.min(i*.025,.6)+'s';
   card.dataset.id = ev.id;
-
   card.innerHTML = `
     <div class="crow" onclick="toggleDet('${ev.id}')">
       <div class="e-info">
@@ -812,6 +955,93 @@ function makeCard(ev, i) {
       ${polyCell}${kalCell}${bookCell}${spread}
     </div>
     <div class="detail" id="det-${ev.id}">${buildDetail(ev)}</div>`;
+  return card;
+}
+
+// ════════════════════════════════
+// GROUP CARD — multi-candidate event
+// Shows all candidates with Poly vs Kalshi prices in one card
+// ════════════════════════════════
+function makeGroupCard(ev, i) {
+  const isArb  = ev.arb?.type==='arb';
+  const isDiff = ev.arb?.type==='diff';
+  const hasKal = ev.candidates.some(c => c.kal);
+
+  // Spread badge
+  let spreadBadge;
+  if (isArb)       spreadBadge = `<span class="stag st-arb">+${ev.arb.roi.toFixed(1)}% ROI</span>`;
+  else if (isDiff) spreadBadge = `<span class="stag st-diff">↕ ${pct(ev.arb.diff)}</span>`;
+  else             spreadBadge = `<span class="stag st-none">Нет расхождений</span>`;
+
+  // Candidate rows
+  const rows = ev.candidates.map(c => {
+    const hasKalC = c.kal != null;
+    const diff = hasKalC ? (c.py - c.ky) : null;
+    const isArbC = c.arb?.type === 'arb';
+    const isDiffC = c.arb?.type === 'diff';
+
+    let diffCell = '';
+    if (isArbC) {
+      diffCell = `<span class="cd-arb">🟢 +${c.arb.roi.toFixed(1)}%</span>`;
+    } else if (isDiffC && Math.abs(c.py - c.ky) >= 0.01) {
+      const d = c.py - c.ky;
+      diffCell = `<span class="cd-diff ${d>0?'cd-pos':'cd-neg'}">${d>0?'▲':'▼'} ${pct(Math.abs(d))}</span>`;
+    } else if (hasKalC) {
+      diffCell = `<span class="cd-same">≈</span>`;
+    }
+
+    const kalCell = hasKalC
+      ? `<span class="ct-kal">${Math.round(c.ky*100)}% <small>${dec(c.ky)}</small></span>`
+      : `<span class="ct-nd">—</span>`;
+
+    const actionCell = isArbC
+      ? `<span class="ct-action arb-action">
+          <a href="${c.url}" target="_blank" onclick="event.stopPropagation()">Poly ${c.arb.polyBuy}</a>
+          ${c.kal?.url ? `+ <a href="${kalshiUrl(c.kal)}" target="_blank" onclick="event.stopPropagation()">Kalshi ${c.arb.kalBuy}</a>` : ''}
+        </span>`
+      : '';
+
+    return `<tr class="crow${isArbC?' crow-arb':isDiffC?' crow-diff':''}">
+      <td class="ct-name">${c.name}</td>
+      <td class="ct-poly">${Math.round(c.py*100)}% <small>${dec(c.py)}</small></td>
+      <td>${kalCell}</td>
+      <td>${diffCell}</td>
+      <td>${actionCell}</td>
+    </tr>`;
+  }).join('');
+
+  const card = document.createElement('div');
+  card.className = `card group-card${isArb?' arb':isDiff?' diff':''}`;
+  card.style.animationDelay = Math.min(i*.025,.6)+'s';
+  card.dataset.id = ev.id;
+  card.innerHTML = `
+    <div class="group-head" onclick="toggleDet('${ev.id}')">
+      <div class="e-info">
+        <div class="etitle">${ev.q}</div>
+        <div class="emeta">
+          <span class="cat-tag">${ev.cat}</span>
+          <span class="vol-tag">VOL: ${ev.volS} · до ${ev.end} · ${ev.candidates.length} кандидатов</span>
+          <a class="qlink qlink-poly" href="${ev.url}" target="_blank" onclick="event.stopPropagation()">↗ Polymarket</a>
+          ${ev.kalEventUrl ? `<a class="qlink qlink-kal" href="${ev.kalEventUrl}" target="_blank" onclick="event.stopPropagation()">↗ Kalshi</a>` : ''}
+        </div>
+      </div>
+      <div class="group-badge">${spreadBadge}</div>
+    </div>
+    <div class="group-table-wrap">
+      <table class="group-table">
+        <thead>
+          <tr>
+            <th>Кандидат</th>
+            <th style="color:var(--poly)">Polymarket</th>
+            <th style="color:var(--kalshi)">${hasKal?'Kalshi':'Kalshi'}</th>
+            <th>Разница</th>
+            <th>Действие</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+    <div class="detail" id="det-${ev.id}" style="display:none"></div>`;
   return card;
 }
 

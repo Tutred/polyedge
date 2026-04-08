@@ -856,6 +856,36 @@ function jaccard(setA, setB) {
   return inter/(a.size+b.size-inter);
 }
 
+// ── Определяем лигу/вид спорта из текста ──────────────────────────────────
+const SPORT_LEAGUES = {
+  nba:      ['nba','basketball','rockets','lakers','celtics','warriors','bulls','heat','nets','knicks','bucks','sixers','clippers','nuggets','suns','jazz','spurs','thunder','trail blazers','blazers','grizzlies','pelicans','timberwolves','wizards','magic','cavaliers','pistons','pacers','raptors','hawks','hornets','conference finals','conference semi'],
+  nfl:      ['nfl','football','super bowl','chiefs','patriots','bills','cowboys','49ers','packers','bears','ravens','steelers','seahawks','rams','chargers','broncos','dolphins','bengals','browns','titans','colts','jaguars','texans','raiders','falcons','saints','panthers','buccaneers','vikings','giants','eagles','commanders','cardinals'],
+  mlb:      ['mlb','baseball','world series','yankees','dodgers','red sox','cubs','mets','astros','braves','giants','cardinals','phillies','padres','brewers','reds','pirates','mariners','athletics','rangers','tigers','white sox','indians','guardians','royals','twins','orioles','blue jays','rays'],
+  nhl:      ['nhl','hockey','stanley cup','penguins','blackhawks','bruins','maple leafs','rangers','canadiens','red wings','flyers','capitals','blues','golden knights','avalanche','oilers','flames','canucks','senators','sabres','coyotes','ducks','kings','sharks','stars','wild','jets','predators','hurricanes','lightning','panthers','devils','islanders'],
+  soccer:   ['soccer','football','premier league','la liga','bundesliga','serie a','ligue 1','champions league','mls','world cup','euro','copa america','fa cup','bundesliga'],
+  tennis:   ['tennis','atp','wta','grand slam','wimbledon','us open','french open','australian open','roland garros'],
+  mma:      ['ufc','mma','bellator','one championship'],
+  golf:     ['golf','pga','masters','us open','british open','ryder cup','lpga'],
+  f1:       ['formula 1','f1','grand prix','ferrari','mercedes','red bull racing'],
+};
+
+function detectSport(text) {
+  const t = (text||'').toLowerCase();
+  for (const [sport, keywords] of Object.entries(SPORT_LEAGUES)) {
+    if (keywords.some(k => t.includes(k))) return sport;
+  }
+  return null;
+}
+
+// ── Конфликт вида спорта/лиги ─────────────────────────────────────────────
+function hasSportConflict(textA, textB) {
+  const sA = detectSport(textA);
+  const sB = detectSport(textB);
+  // If both have detected sports and they differ → conflict
+  if (sA && sB && sA !== sB) return `sport: ${sA} vs ${sB}`;
+  return null;
+}
+
 function findKalshi(q, polyYesProb) {
   if (!q) return null;
   const exact = kalMap[norm(q)];
@@ -864,15 +894,14 @@ function findKalshi(q, polyYesProb) {
   const qKws = kws(q);
 
   // Special case: short query (1-2 words = candidate name like "Gavin Newsom")
-  // Search for Kalshi market whose title CONTAINS this name
   if (qKws.length < 2) {
     const qNorm = norm(q);
+    // For short names, also check sport context via the parent question
     let bestShort = null, bestShortScore = 0;
     for (const km of Object.values(kalMap)) {
       if (!km.title) continue;
       if (isNumericThreshold(km)) continue;
       const kNorm = norm(km.title);
-      // Check if Kalshi title contains the candidate name
       if (kNorm.includes(qNorm) || qNorm.includes(kNorm)) {
         const score = qNorm.length / Math.max(qNorm.length, kNorm.length);
         if (score > bestShortScore) { bestShort = km; bestShortScore = score; }
@@ -895,6 +924,9 @@ function findKalshi(q, polyYesProb) {
     const srcA=normalizeSource(q), srcB=normalizeSource(kalFull);
     if (srcA&&srcB&&srcA!==srcB) continue;
 
+    // ── NEW: reject if different sport/league ──────────────────────────────
+    if (hasSportConflict(q, kalFull)) continue;
+
     const titleScore = jaccard(qKws, kws(km.title));
     const fullScore  = jaccard(qKws, kws(kalFull));
     const exactHits  = qKws.filter(w => kws(km.title).includes(w)).length;
@@ -912,6 +944,11 @@ function validateKalshiMatch(km, polyYesProb, polyQ) {
   if (polyYesProb==null||km.yesProb==null) return km;
   if (Math.abs(polyYesProb-km.yesProb)>0.40) return null;
   if (polyQ && hasResolutionConflict(polyQ, km.title)) return null;
+  // Also check sport conflict on full match
+  if (polyQ) {
+    const kalFull = [km.title, km.yes_sub_title||'', km.no_sub_title||''].join(' ');
+    if (hasSportConflict(polyQ, kalFull)) return null;
+  }
   return km;
 }
 

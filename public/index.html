@@ -160,8 +160,8 @@ a{color:inherit;text-decoration:none}
 
 <!-- FILTER BAR -->
 <div class="fbar">
-  <button class="fbtn fa" onclick="setF('all',this)">Все события</button>
-  <button class="fbtn"    onclick="setF('diff',this)">📊 vs Букмекеры ≥1%</button>
+  <button class="fbtn"    onclick="setF('all',this)">Все события</button>
+  <button class="fbtn fg" onclick="setF('diff',this)">📊 vs Букмекеры ≥1%</button>
   <div class="vsep"></div>
   <button class="fbtn" onclick="setF('Sports',this)">Спорт</button>
   <button class="fbtn" onclick="setF('Politics',this)">Политика</button>
@@ -201,7 +201,7 @@ const REFRESH_SEC = 90;
 // ════════════════════════════════════════════════════════
 let events   = [];
 let bookMap  = {};          // key → bookmaker market object
-let filter   = 'all';
+let filter   = 'diff'; // по умолчанию показываем только совпавшие с букмекерами
 let sortBy   = 'diff';
 let openId   = null;
 let refreshTimer = null;
@@ -386,33 +386,56 @@ function findBook(q, polyYesProb) {
   if (!q || !Object.keys(bookMap).length) return null;
 
   const qNorm = norm(q);
+  const qLow  = q.toLowerCase();
 
-  // Для futures: ищем название команды/игрока из букмекера в вопросе Polymarket
+  // ── Только спортивные события ────────────────────────────────────────────
+  // Букмекеры принимают ставки только на спорт.
+  // Сразу отклоняем политику, геополитику, поп-культуру и т.д.
+  const isSport = /\b(nba|nfl|nhl|mlb|ufc|mma|mls|epl|premier league|champions league|world cup|copa|bundesliga|la liga|serie a|ligue|fifa|uefa|basketball|football|soccer|hockey|baseball|tennis|golf|boxing|fight|bout|match|game|vs|bowl|cup|playoff|championship|finals|stanley|world series|super bowl|grand prix|formula|f1|wimbledon|open)\b/i.test(q);
+
+  if (!isSport) return null; // политика, выборы, криптo, другое → пропускаем
+
+  // ── Futures матчинг (The Odds API outrights) ──────────────────────────────
+  // Букмекер: team_name = "Boston Celtics"
   // Polymarket: "Will Boston Celtics win 2026 NBA Finals?"
-  // Букмекер futures: team_name = "Boston Celtics"
-  // Совпадение: "boston" и "celtics" оба есть в вопросе ✓
-
-  let best = null, bs = 0;
-
   for (const bm of Object.values(bookMap)) {
-    const teamName = bm.team_name || bm.home_team || bm.title || '';
+    const teamName = bm.team_name || '';
     if (!teamName) continue;
 
     const teamWords = norm(teamName).split(' ').filter(w => w.length > 2);
     if (!teamWords.length) continue;
 
-    // Все слова из названия команды должны быть в вопросе
-    const hits = teamWords.filter(w => qNorm.includes(w));
+    // Все слова команды должны быть в вопросе
+    const allMatch = teamWords.every(w => qNorm.includes(w));
+    if (!allMatch) continue;
 
-    // Минимум: все слова команды найдены (не частично)
-    if (hits.length < teamWords.length) continue;
+    if (polyYesProb != null && bm.yesProb != null &&
+        Math.abs(polyYesProb - bm.yesProb) > 0.30) continue;
 
-    // Ценовой фильтр — futures могут сильнее расходиться, до 30pp
-    if (polyYesProb != null && bm.yesProb != null) {
-      if (Math.abs(polyYesProb - bm.yesProb) > 0.30) continue;
-    }
+    return bm;
+  }
 
-    if (hits.length > bs) { best = bm; bs = hits.length; }
+  // ── Game-level матчинг (moneyline) ────────────────────────────────────────
+  // Букмекер: home="Houston Rockets", away="LA Lakers"
+  // Polymarket: "Will Houston Rockets beat LA Lakers?"
+  let best = null, bs = 0;
+  for (const bm of Object.values(bookMap)) {
+    if (!bm.home_team || !bm.away_team) continue;
+
+    const homeWords = norm(bm.home_team).split(' ').filter(w => w.length > 2);
+    const awayWords = norm(bm.away_team).split(' ').filter(w => w.length > 2);
+    if (!homeWords.length || !awayWords.length) continue;
+
+    const homeHits = homeWords.filter(w => qNorm.includes(w)).length;
+    const awayHits = awayWords.filter(w => qNorm.includes(w)).length;
+
+    if (homeHits < 1 || awayHits < 1) continue;
+
+    if (polyYesProb != null && bm.yesProb != null &&
+        Math.abs(polyYesProb - bm.yesProb) > 0.20) continue;
+
+    const score = homeHits + awayHits;
+    if (score > bs) { best = bm; bs = score; }
   }
 
   return best;

@@ -1,55 +1,41 @@
-// api/debug.js — тестирует разные endpoints Kalshi
+// api/debug.js — показывает что реально приходит из SharpAPI и Polymarket
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Content-Type', 'application/json');
 
-  const BASE = 'https://api.elections.kalshi.com/trade-api/v2';
-  const results = {};
+  const KEY = process.env.SHARP_API_KEY;
+  const result = { sharp: null, poly: null, error: null };
 
-  // Test 1: markets без фильтров
+  // Test SharpAPI — первые 3 события
+  if (KEY) {
+    try {
+      const r = await fetch('https://api.sharpapi.io/api/v1/odds?league=nba&market=moneyline&limit=3', {
+        headers: { 'X-API-Key': KEY },
+        signal: AbortSignal.timeout(8000),
+      });
+      const j = await r.json();
+      // Show raw structure of first item
+      result.sharp = {
+        status: r.status,
+        count: (j.data||j.odds||j||[]).length,
+        first_raw: (j.data||j.odds||j||[])[0] || null,
+        keys_top: Object.keys(j),
+      };
+    } catch(e) { result.sharp = { error: e.message }; }
+  } else {
+    result.sharp = { error: 'NO SHARP_API_KEY' };
+  }
+
+  // Test Polymarket — first 2 events
   try {
-    const r = await fetch(`${BASE}/markets?limit=10`, { signal: AbortSignal.timeout(8000) });
+    const r = await fetch('https://gamma-api.polymarket.com/events?active=true&closed=false&limit=2&order=volume&ascending=false');
     const j = await r.json();
-    results.markets_no_filter = {
-      status: r.status, count: j.markets?.length, cursor: j.cursor?.slice(0,20),
-      first: j.markets?.[0] ? { ticker: j.markets[0].ticker, title: j.markets[0].title, yes_bid: j.markets[0].yes_bid_dollars, status: j.markets[0].status, mve: !!j.markets[0].mve_collection_ticker } : null
+    result.poly = {
+      count: j.length,
+      first_title: j[0]?.title,
+      first_market_question: j[0]?.markets?.[0]?.question,
     };
-  } catch(e) { results.markets_no_filter = { error: e.message }; }
+  } catch(e) { result.poly = { error: e.message }; }
 
-  // Test 2: markets status=open (не active)
-  try {
-    const r = await fetch(`${BASE}/markets?limit=10&status=open`, { signal: AbortSignal.timeout(8000) });
-    const j = await r.json();
-    results.markets_status_open = {
-      status: r.status, count: j.markets?.length,
-      first: j.markets?.[0] ? { ticker: j.markets[0].ticker, title: j.markets[0].title, yes_bid: j.markets[0].yes_bid_dollars, status: j.markets[0].status } : null
-    };
-  } catch(e) { results.markets_status_open = { error: e.message }; }
-
-  // Test 3: events endpoint
-  try {
-    const r = await fetch(`${BASE}/events?limit=5&status=open&with_nested_markets=true`, { signal: AbortSignal.timeout(8000) });
-    const j = await r.json();
-    const first_event = j.events?.[0];
-    const first_market = first_event?.markets?.[0];
-    results.events = {
-      status: r.status, event_count: j.events?.length,
-      first_event: first_event ? { ticker: first_event.event_ticker, title: first_event.title, series: first_event.series_ticker, market_count: first_event.markets?.length } : null,
-      first_market: first_market ? { ticker: first_market.ticker, yes_bid: first_market.yes_bid_dollars, yes_ask: first_market.yes_ask_dollars, last: first_market.last_price_dollars,
-        url_try: `https://kalshi.com/markets/${(first_event?.series_ticker||'').toLowerCase()}/${(first_event?.event_ticker||'').toLowerCase()}`
-      } : null
-    };
-  } catch(e) { results.events = { error: e.message }; }
-
-  // Test 4: multivariate=exclude
-  try {
-    const r = await fetch(`${BASE}/markets?limit=10&multivariate_markets=exclude`, { signal: AbortSignal.timeout(8000) });
-    const j = await r.json();
-    results.markets_excl_mve = {
-      status: r.status, count: j.markets?.length,
-      first: j.markets?.[0] ? { ticker: j.markets[0].ticker, title: j.markets[0].title, yes_bid: j.markets[0].yes_bid_dollars } : null
-    };
-  } catch(e) { results.markets_excl_mve = { error: e.message }; }
-
-  res.status(200).json({ results, ts: new Date().toISOString() });
+  res.status(200).json(result);
 }

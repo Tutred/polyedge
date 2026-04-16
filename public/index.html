@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>PolyEdge — Арбитраж Polymarket & Kalshi</title>
+<title>PolyEdge — Polymarket vs Букмекеры</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap');
 
@@ -76,7 +76,7 @@ main{max-width:1440px;margin:0 auto;padding:20px 28px 80px}
 .retry-btn{font-family:var(--mono);font-size:11px;background:transparent;border:1px solid var(--poly);color:var(--poly);padding:7px 18px;border-radius:3px;cursor:pointer;margin-top:6px}
 
 /* ── TABLE HEADER ── */
-.thead{display:grid;grid-template-columns:1fr 160px 160px 160px 120px;gap:6px;padding:7px 16px;font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);border-bottom:1px solid var(--border);margin-bottom:3px}
+.thead{display:grid;grid-template-columns:1fr 180px 180px 130px;gap:6px;padding:7px 16px;font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);border-bottom:1px solid var(--border);margin-bottom:3px}
 
 /* ── CARD ── */
 .card{background:var(--card);border:1px solid var(--border);border-radius:5px;margin-bottom:7px;overflow:hidden;cursor:pointer;transition:border-color .2s;animation:fi .25s ease both}
@@ -88,7 +88,7 @@ main{max-width:1440px;margin:0 auto;padding:20px 28px 80px}
 .card.diff:hover{border-color:rgba(245,158,11,.4)}
 
 /* main row */
-.crow{display:grid;grid-template-columns:1fr 160px 160px 160px 120px;gap:6px;padding:13px 16px;align-items:center}
+.crow{display:grid;grid-template-columns:1fr 180px 180px 130px;gap:6px;padding:13px 16px;align-items:center}
 
 /* event title */
 .etitle{font-size:13px;font-weight:600;line-height:1.4;margin-bottom:4px}
@@ -238,7 +238,6 @@ main{max-width:1440px;margin:0 auto;padding:20px 28px 80px}
     <div class="hs"><div class="hs-v" id="hTotal">—</div><div class="hs-l">Событий</div></div>
     <div class="hs"><div class="hs-v" id="hArb" style="color:var(--green)">—</div><div class="hs-l">Арбитраж</div></div>
     <div class="hs"><div class="hs-v" id="hDiff" style="color:var(--yellow)">—</div><div class="hs-l">Расхождение</div></div>
-    <div class="hs"><div class="hs-v" id="hKal">—</div><div class="hs-l">Kalshi матчей</div></div>
     <div class="hs"><div class="hs-v" id="hBook" style="color:var(--book)">—</div><div class="hs-l">vs Букмекеры</div></div>
   </div>
   <div class="hright">
@@ -250,8 +249,7 @@ main{max-width:1440px;margin:0 auto;padding:20px 28px 80px}
 
 <div class="sbar">
   <div class="src s-wait" id="srcPoly">  <div class="sd" style="background:var(--yellow)"></div>Polymarket: загрузка...</div>
-  <div class="src s-wait" id="srcKalshi"><div class="sd" style="background:var(--yellow)"></div>Kalshi: загрузка...</div>
-  <div class="src s-wait" id="srcBook">  <div class="sd" style="background:var(--yellow)"></div>Букмекеры: нет данных</div>
+  <div class="src s-wait" id="srcBook">  <div class="sd" style="background:var(--yellow)"></div>Букмекеры: загрузка...</div>
   <div class="src s-wait" id="srcAI">   <div class="sd" style="background:var(--yellow)"></div>Матчинг: загрузка...</div>
 </div>
 
@@ -285,8 +283,7 @@ main{max-width:1440px;margin:0 auto;padding:20px 28px 80px}
     <div class="thead">
       <div>Событие</div>
       <div>Polymarket</div>
-      <div>Kalshi</div>
-      <div>Ср. букмекеры</div>
+      <div>Букмекеры</div>
       <div>Расхождение</div>
     </div>
     <div id="list"></div>
@@ -297,13 +294,15 @@ main{max-width:1440px;margin:0 auto;padding:20px 28px 80px}
 // ════════════════════════════════
 // CONFIG
 // ════════════════════════════════
-const REFRESH_SEC = 90; // auto-refresh every 90 seconds
+const REFRESH_SEC = 90;
 
 // ════════════════════════════════
 // STATE
 // ════════════════════════════════
-let events = [], kalMap = {}, bookMap = {}, filter = 'all', sortBy = 'arb';
+let events = [], bookMap = {}, filter = 'all', sortBy = 'vol';
 let openId = null, refreshTimer = null, countdown = REFRESH_SEC;
+const kalMap = {}; // Kalshi отключён
+const findKalshi = () => null; // Kalshi отключён
 
 // ════════════════════════════════
 // INIT
@@ -314,157 +313,84 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 // ════════════════════════════════
-// LOAD — parallel fetch of all sources
+// LOAD
 // ════════════════════════════════
 async function loadAll() {
   showScr('load');
-  setText('loadTxt', 'Загрузка данных...');
+  setText('loadTxt', 'Загрузка Polymarket...');
 
-  // Fetch all 3 sources in parallel
-  const [polyRes, kalRes, oddsRes] = await Promise.allSettled([
-    fetchPoly(),
-    fetchKalshi(),
-    fetchOdds(),
-  ]);
-
-  // ── Polymarket ────────────────────────────────────────────
+  // 1. Polymarket — показываем сразу
   let poly = [];
-  if (polyRes.status === 'fulfilled' && polyRes.value?.length) {
-    poly = polyRes.value;
+  try {
+    poly = await fetchPoly();
     setSrc('srcPoly', 'ok', `Polymarket: ${poly.length} маркетов ✓`);
-  } else {
-    setSrc('srcPoly', 'err', `Polymarket: ${polyRes.reason?.message || 'ошибка'}`);
-    setText('errTxt', 'Не удалось загрузить Polymarket. Обновите страницу.');
+  } catch(e) {
+    setSrc('srcPoly', 'err', `Polymarket: ${e.message}`);
+    setText('errTxt', `Ошибка Polymarket: ${e.message}`);
     showScr('err'); return;
   }
 
-  // ── Kalshi ───────────────────────────────────────────────
-  kalMap = {};
-  if (kalRes.status === 'fulfilled' && kalRes.value?.length) {
-    kalRes.value.forEach(km => {
-      kalMap[norm(km.title)] = km;
-      if (km.ticker) kalMap[km.ticker.toLowerCase()] = km;
-    });
-    setSrc('srcKalshi', 'ok', `Kalshi: ${kalRes.value.length} маркетов ✓`);
-  } else {
-    setSrc('srcKalshi', 'wait', 'Kalshi: нет данных');
-  }
+  events = buildGroupedEvents(poly);
+  render();
+  showScr('app');
+  setText('updR', `Обновлено ${new Date().toLocaleTimeString('ru-RU')} · след. через `);
+  toast(`✓ ${poly.length} событий загружено`, 'ok');
 
-  // ── Bookmakers ────────────────────────────────────────────
-  bookMap = {};
-  if (oddsRes.status === 'fulfilled') {
-    const j = oddsRes.value;
+  // 2. Букмекеры — в фоне
+  setSrc('srcBook', 'wait', 'Букмекеры: загрузка...');
+  try {
+    const j = await fetchOdds();
+    bookMap = {};
     if (j.ok && j.markets?.length) {
       j.markets.forEach(bm => {
         bookMap[norm(bm.title)] = bm;
-        bookMap[norm(bm.home_team)] = bm;
+        if (bm.home_team) bookMap[norm(bm.home_team)] = bm;
       });
-      setSrc('srcBook', 'ok', `Букмекеры: ${j.markets.length} событий · ${getMaxBookCount(j.markets)} контор ✓`);
+      const nBooks = getMaxBookCount(j.markets);
+      setSrc('srcBook', 'ok', `Букмекеры: ${j.markets.length} событий · ${nBooks} контор ✓`);
     } else if (j.error === 'NO_KEY') {
-      setSrc('srcBook', 'wait', '📋 Букмекеры: нужен ключ → the-odds-api.com (бесплатно)');
+      setSrc('srcBook', 'wait', 'Букмекеры: добавь SHARP_API_KEY в Vercel');
+      return;
     } else {
-      setSrc('srcBook', 'wait', `Букмекеры: ${j.message || 'нет данных'}`);
+      setSrc('srcBook', 'wait', j.message || 'Букмекеры: нет данных');
+      return;
     }
-  } else {
-    setSrc('srcBook', 'wait', 'Букмекеры: ошибка загрузки');
+  } catch(e) {
+    setSrc('srcBook', 'wait', `Букмекеры: ${e.message}`);
+    return;
   }
 
-  // ── Build & render ────────────────────────────────────────
+  // Перестраиваем с данными букмекеров
   events = buildGroupedEvents(poly);
-  const kalMatched = events.filter(e => e.candidates?.some(c => c.kal) || e.kal).length;
-  setSrc('srcAI', 'ok', `Матчинг: ${kalMatched} событий с Kalshi ✓`);
+  const bookMatched = events.filter(e => e.bookAvg != null).length;
+  setText('hBook', bookMatched);
   render();
-  showScr('app');
-
-  const t = new Date().toLocaleTimeString('ru-RU');
-  setText('updR', `Обновлено ${t} · след. через `);
+  setText('updR', `Обновлено ${new Date().toLocaleTimeString('ru-RU')} · след. через `);
   countdown = REFRESH_SEC;
-  toast(`✓ ${events.length} событий · ${kalMatched} на Kalshi`, 'ok');
-}
-
-function getMaxBookCount(markets) {
-  return Math.max(...markets.map(m => Object.keys(m.bookmakers || {}).length), 0);
-}
-
-// ── Fetchers ──────────────────────────────────────────────────────────────────
-async function fetchPoly() {
-  const r = await fetch('/api/markets', { signal: AbortSignal.timeout(12000) });
-  const j = await r.json();
-  if (!j.ok || !j.markets?.length) throw new Error(j.error || 'empty');
-  return j.markets;
-}
-
-async function fetchKalshi() {
-  const r = await fetch('/api/kalshi', { signal: AbortSignal.timeout(15000) });
-  const j = await r.json();
-  if (!j.ok || !j.markets?.length) throw new Error(j.error || 'empty');
-  return j.markets;
-}
-
-async function fetchOdds() {
-  const r = await fetch('/api/odds', { signal: AbortSignal.timeout(12000) });
-  return await r.json();
-}
-
-// ── Auto-refresh countdown ────────────────────────────────────────────────────
-function startCountdown() {
-  if (refreshTimer) clearInterval(refreshTimer);
-  countdown = REFRESH_SEC;
-  refreshTimer = setInterval(() => {
-    countdown--;
-    const el = $('updN');
-    if (el) el.textContent = countdown + 'с';
-    if (countdown <= 0) {
-      countdown = REFRESH_SEC;
-      silentRefresh();
-    }
-  }, 1000);
+  toast(`✓ ${bookMatched} событий сравнено с букмекерами`, 'ok');
 }
 
 async function silentRefresh() {
   try {
-    const [polyRes, kalRes, oddsRes] = await Promise.allSettled([
-      fetchPoly(), fetchKalshi(), fetchOdds(),
-    ]);
+    poly_cache = await fetchPoly();
+    setSrc('srcPoly', 'ok', `Polymarket: ${poly_cache.length} маркетов ✓`);
+    events = buildGroupedEvents(poly_cache);
+    render();
 
-    let changed = false;
-
-    if (polyRes.status === 'fulfilled' && polyRes.value?.length) {
-      // Update kalMap first
-      if (kalRes.status === 'fulfilled' && kalRes.value?.length) {
-        kalMap = {};
-        kalRes.value.forEach(km => {
-          kalMap[norm(km.title)] = km;
-          if (km.ticker) kalMap[km.ticker.toLowerCase()] = km;
-        });
-        setSrc('srcKalshi', 'ok', `Kalshi: ${kalRes.value.length} маркетов ✓`);
-      }
-
-      if (oddsRes.status === 'fulfilled' && oddsRes.value?.ok) {
-        const j = oddsRes.value;
-        bookMap = {};
-        j.markets?.forEach(bm => {
-          bookMap[norm(bm.title)] = bm;
-          bookMap[norm(bm.home_team)] = bm;
-        });
-      }
-
-      events = buildGroupedEvents(polyRes.value);
-      changed = true;
-    }
-
-    if (changed) {
+    const j = await fetchOdds();
+    if (j.ok && j.markets?.length) {
+      bookMap = {};
+      j.markets.forEach(bm => {
+        bookMap[norm(bm.title)] = bm;
+        if (bm.home_team) bookMap[norm(bm.home_team)] = bm;
+      });
+      events = buildGroupedEvents(poly_cache);
       render();
-      setText('updR', `Обновлено ${new Date().toLocaleTimeString('ru-RU')} · след. через `);
     }
-  } catch(e) {
-    console.warn('Silent refresh failed:', e.message);
-  }
+    setText('updR', `Обновлено ${new Date().toLocaleTimeString('ru-RU')} · след. через `);
+  } catch(e) { console.warn('Refresh failed:', e.message); }
 }
-
-function manualRefresh() { loadAll(); startCountdown(); }
-
-
+let poly_cache = [];
 
 // ════════════════════════════════
 // GROUP EVENTS
@@ -497,103 +423,69 @@ function buildGroupedEvents(polyMarkets) {
         if (!m.yesProb || m.yesProb < 0.005) return null;
         const py = m.yesProb;
         const pn = 1 - py;
-
-        // For multi-candidate events, the candidate name is in outcomes[0]
-        // e.g. "Gavin Newsom" — use this to search Kalshi, not the full question
         const candidateName = m.outcomes?.[0] || '';
-        const searchQuery   = candidateName.length > 3 ? candidateName : m.question;
 
-        // Try candidate name first, then full question
-        let km = findKalshi(searchQuery, py);
-        if (!km && searchQuery !== m.question) km = findKalshi(m.question, py);
+        // Bookmaker match for this candidate
+        const bm = findBook(m.question) || findBook(candidateName);
+        const bookAvg = bm?.yesProb ?? null;
 
-        const ky = km?.yesProb ?? null;
-        const kn = ky != null ? 1 - ky : null;
-
-        // Arbitrage calc per candidate
         let arb = null;
-        if (ky != null) {
-          const costA = py + kn, costB = pn + ky;
-          const roiA = costA < 1 ? ((1-costA)/costA)*100 : 0;
-          const roiB = costB < 1 ? ((1-costB)/costB)*100 : 0;
-          const validA = costA < 0.985 && roiA >= 0.3 && roiA <= 20;
-          const validB = costB < 0.985 && roiB >= 0.3 && roiB <= 20;
-          if (validA || validB) {
-            const useA = validA && (!validB || costA <= costB);
-            const cost = useA ? costA : costB;
-            arb = {
-              type: 'arb', cost, profit: 1-cost, roi: ((1-cost)/cost)*100,
-              polyBuy:     useA ? 'YES' : 'NO',
-              kalBuy:      useA ? 'NO'  : 'YES',
-              polyPrice:   useA ? py   : pn,
-              kalPrice:    useA ? kn   : ky,
-              polyOutcome: m.outcomes?.[0]||'Yes',
-              kalOutcome:  useA ? (km.no_sub_title||m.outcomes?.[1]||'No') : (km.yes_sub_title||m.outcomes?.[0]||'Yes'),
+        if (bookAvg != null) {
+          const diff = py - bookAvg;
+          if (Math.abs(diff) >= 0.01) {
+            arb = { type:'bookdiff', diff: Math.abs(diff),
+              polyHigher: diff > 0, polyProb: py, bookProb: bookAvg,
+              bookCount: bm?.bookCount || 0,
+              cheaperOn: diff > 0 ? 'books' : 'polymarket',
+              action: diff > 0
+                ? `YES дешевле у букмекеров (${Math.round(bookAvg*100)}% vs ${Math.round(py*100)}%)`
+                : `YES дешевле на Polymarket (${Math.round(py*100)}% vs ${Math.round(bookAvg*100)}%)`,
             };
-          } else {
-            const diff = Math.abs(py - ky);
-            if (diff >= 0.01) arb = { type:'diff', diff, higher: py>ky?'Poly':'Kalshi', lower: py>ky?'Kalshi':'Poly' };
           }
         }
 
         return {
           id:       m.id,
-          name:     candidateName || m.outcomes?.[0] || m.question,
+          name:     candidateName || m.question,
           question: m.question,
           url:      m.url,
-          py, pn, ky, kn,
-          kal: km,
+          py, pn,
+          bookAvg, bm,
           arb,
           vol: m.volume || 0,
         };
       })
       .filter(Boolean)
-      .sort((a,b) => b.py - a.py); // sort by Poly probability desc
+      .sort((a,b) => b.py - a.py);
 
     if (!candidates.length) continue;
 
-    // Max arb across all candidates
     const maxArb = candidates.reduce((best, c) => {
       if (!c.arb) return best;
       if (!best) return c.arb;
-      const cVal = c.arb.type==='arb' ? c.arb.roi : (c.arb.type==='diff' ? c.arb.diff*100 : 0);
-      const bVal = best.type==='arb' ? best.roi : (best.type==='diff' ? best.diff*100 : 0);
-      return cVal > bVal ? c.arb : best;
+      return (c.arb.diff||0) > (best.diff||0) ? c.arb : best;
     }, null);
 
-    const hasAnyKalshi = candidates.some(c => c.kal);
     const totalVol = candidates.reduce((s,c) => s+c.vol, 0);
     const tags = mList[0]?.tags || [];
 
     result.push({
-      id:         grp.slug,
-      isGroup:    true,              // ← flag for renderer
-      q:          grp.title,
+      id:      grp.slug,
+      isGroup: true,
+      q:       grp.title,
       candidates,
-      arb:        maxArb,
-      kal:        hasAnyKalshi ? {} : null,
-      cat:        guessCat(grp.title, tags),
-      vol:        totalVol,
-      volS:       fmtVol(totalVol),
-      end:        mList[0]?.endDate ? new Date(mList[0].endDate).toLocaleDateString('ru-RU',{day:'numeric',month:'short'}) : '—',
-      url:        grp.eventUrl,
-      kalEventUrl: hasAnyKalshi ? kalshiEventUrl(candidates) : null,
-      // for compat with single-event render
+      arb:     maxArb,
+      kal:     null, // Kalshi removed
+      cat:     guessCat(grp.title, tags),
+      vol:     totalVol, volS: fmtVol(totalVol),
+      end:     mList[0]?.endDate ? new Date(mList[0].endDate).toLocaleDateString('ru-RU',{day:'numeric',month:'short'}) : '—',
+      url:     grp.eventUrl,
       py: candidates[0]?.py, pn: candidates[0]?.pn,
-      ky: candidates[0]?.ky, kn: candidates[0]?.kn,
       yL: 'Да', nL: 'Нет',
     });
   }
 
   return result.filter(Boolean);
-}
-
-// Get Kalshi event URL from first matched candidate
-function kalshiEventUrl(candidates) {
-  for (const c of candidates) {
-    if (c.kal?.url) return c.kal.url;
-  }
-  return null;
 }
 
 // ════════════════════════════════
@@ -928,8 +820,7 @@ function render() {
   setText('hTotal', events.length);
   setText('hArb',   events.filter(e=>e.arb?.type==='arb').length);
   setText('hDiff',  events.filter(e=>e.arb?.type==='diff'||e.arb?.type==='bookdiff').length);
-  setText('hKal',   events.filter(e=>e.kal||e.candidates?.some(c=>c.kal)).length);
-  setText('hBook',  events.filter(e=>e.bookAvg!=null).length);
+  setText('hBook', events.filter(e=>e.bookAvg!=null||e.candidates?.some(c=>c.bookAvg!=null)).length);
 
   const el = $('list');
   el.innerHTML = '';
@@ -948,25 +839,20 @@ function makeCard(ev, i) {
   const isDiff = ev.arb?.type==='diff';
 
   const polyCell = priceCell('poly', 'Polymarket', ev.py, ev.pn, ev.yL, ev.nL);
-  const kalCell  = ev.ky!=null
-    ? priceCell('kalshi','Kalshi', ev.ky, ev.kn, ev.yL, ev.nL)
-    : `<div class="pc kalshi"><div class="pc-src">Kalshi</div><div class="pc-nd">нет данных</div></div>`;
   const bookCell = ev.bookAvg != null
-    ? priceCell('book', `Ср. ${ev.bm?.bookCount||''}букм.`, ev.bookAvg, 1 - ev.bookAvg, ev.yL, ev.nL)
+    ? priceCell('book', `${ev.bm?.bookCount||''}букм.`, ev.bookAvg, 1 - ev.bookAvg, ev.yL, ev.nL)
     : `<div class="pc book"><div class="pc-src">Букмекеры</div><div class="pc-nd">нет ключа</div></div>`;
 
   let spread;
   if (isArb)
     spread = `<div class="sc"><div class="stag st-arb">+${ev.arb.roi.toFixed(1)}% ROI</div><div class="ssub">Арбитраж</div></div>`;
-  else if (ev.arb?.type==='diff')
-    spread = `<div class="sc"><div class="stag st-diff">↕ ${pct(ev.arb.diff)}</div><div class="ssub">vs Kalshi</div></div>`;
   else if (ev.arb?.type==='bookdiff')
     spread = `<div class="sc"><div class="stag st-book">📊 ${pct(ev.arb.diff)}</div><div class="ssub">${ev.arb.cheaperOn==='books'?'Poly завышен':'Poly дешевле'}</div></div>`;
   else
     spread = `<div class="sc"><div class="stag st-none">≈</div><div class="ssub">Согласуются</div></div>`;
 
   const card = document.createElement('div');
-  card.className = `card${isArb?' arb':isDiff?' diff':''}`;
+  card.className = `card${isArb?' arb':ev.arb?.type==='bookdiff'?' diff':''}`;
   card.style.animationDelay = Math.min(i*.025,.6)+'s';
   card.dataset.id = ev.id;
   card.innerHTML = `
@@ -977,30 +863,24 @@ function makeCard(ev, i) {
           <span class="cat-tag">${ev.cat}</span>
           <span class="vol-tag">VOL: ${ev.volS} · до ${ev.end}</span>
           <a class="qlink qlink-poly" href="${ev.url}" target="_blank" onclick="event.stopPropagation()">↗ Polymarket</a>
-          ${ev.kal ? `<a class="qlink qlink-kal" href="${kalshiUrl(ev.kal)}" target="_blank" onclick="event.stopPropagation()">↗ Kalshi</a>` : ''}
         </div>
       </div>
-      ${polyCell}${kalCell}${bookCell}${spread}
+      ${polyCell}${bookCell}${spread}
     </div>
     <div class="detail" id="det-${ev.id}">${buildDetail(ev)}</div>`;
   return card;
 }
 
 function makeGroupCard(ev, i) {
-  const isArb  = ev.arb?.type==='arb';
-  const isDiff = ev.arb?.type==='diff';
+  const isBookDiff = ev.arb?.type === 'bookdiff';
 
-  // Only show candidates that have Kalshi data AND divergence ≥1%
-  const visibleCandidates = ev.candidates.filter(c => {
-    if (!c.kal) return false; // no Kalshi data → skip
-    const diff = Math.abs(c.py - c.ky);
-    const hasArb = c.arb?.type === 'arb';
-    return hasArb || diff >= 0.01; // show arb OR ≥1% diff
-  });
+  // Only show candidates with bookmaker divergence ≥1%
+  const visibleCandidates = ev.candidates.filter(c =>
+    c.arb?.type === 'bookdiff' && Math.abs(c.arb.diff) >= 0.01
+  );
 
-  // If no candidates have divergence → render as simple card without table
+  // No divergence → compact card
   if (visibleCandidates.length === 0) {
-    const topC = ev.candidates[0];
     const card = document.createElement('div');
     card.className = 'card';
     card.style.animationDelay = Math.min(i*.025,.6)+'s';
@@ -1013,7 +893,6 @@ function makeGroupCard(ev, i) {
             <span class="cat-tag">${ev.cat}</span>
             <span class="vol-tag">VOL: ${ev.volS} · до ${ev.end} · ${ev.candidates.length} кандидатов</span>
             <a class="qlink qlink-poly" href="${ev.url}" target="_blank" onclick="event.stopPropagation()">↗ Polymarket</a>
-            ${ev.kalEventUrl ? `<a class="qlink qlink-kal" href="${ev.kalEventUrl}" target="_blank" onclick="event.stopPropagation()">↗ Kalshi</a>` : ''}
             <span class="stag st-none" style="margin-left:6px">Нет расхождений</span>
           </div>
         </div>
@@ -1021,56 +900,29 @@ function makeGroupCard(ev, i) {
     return card;
   }
 
-  // Spread badge from best candidate
-  let spreadBadge;
-  if (isArb)       spreadBadge = `<span class="stag st-arb">+${ev.arb.roi.toFixed(1)}% ROI</span>`;
-  else if (isDiff) spreadBadge = `<span class="stag st-diff">↕ ${pct(ev.arb.diff)}</span>`;
-  else             spreadBadge = `<span class="stag st-none">≈</span>`;
+  const spreadBadge = isBookDiff
+    ? `<span class="stag st-book">📊 ${pct(ev.arb.diff)}</span>`
+    : `<span class="stag st-none">≈</span>`;
 
-  // Build rows — only for candidates with divergence
   const rows = visibleCandidates.map(c => {
-    const isArbC  = c.arb?.type === 'arb';
-    const isDiffC = c.arb?.type === 'diff';
-    const d = c.py - c.ky;
+    const d = c.arb.diff;
+    const cheaperBooks = c.arb.cheaperOn === 'books';
+    const diffCell = `<span class="cd-diff ${cheaperBooks?'cd-neg':'cd-pos'}">${cheaperBooks?'▼':'▲'} ${pct(d)}</span>`;
+    const actionCell = cheaperBooks
+      ? `<a class="act-link act-poly" href="${c.url}" target="_blank" onclick="event.stopPropagation()">Poly: YES (${Math.round(c.py*100)}%)</a>`
+      : `<a class="act-link act-poly" href="${c.url}" target="_blank" onclick="event.stopPropagation()">Poly дешевле (${Math.round(c.py*100)}%)</a>`;
 
-    let diffCell;
-    if (isArbC) {
-      diffCell = `<span class="cd-arb">🟢 +${c.arb.roi.toFixed(1)}%</span>`;
-    } else {
-      diffCell = `<span class="cd-diff ${d>0?'cd-pos':'cd-neg'}">${d>0?'▲':'▼'} ${pct(Math.abs(d))}</span>`;
-    }
-
-    // Action — direct links with what to buy
-    let actionCell = '';
-    if (isArbC) {
-      const polyLabel = c.arb.polyBuy === 'YES' ? c.name : 'NO';
-      const kalLabel  = c.arb.kalBuy  === 'YES' ? c.name : 'NO';
-      actionCell = `
-        <a class="act-link act-poly" href="${c.url}" target="_blank" onclick="event.stopPropagation()">
-          Poly: ${polyLabel} (${Math.round(c.arb.polyPrice*100)}%)
-        </a>
-        ${c.kal?.url ? `<a class="act-link act-kal" href="${kalshiUrl(c.kal)}" target="_blank" onclick="event.stopPropagation()">
-          Kalshi: ${kalLabel} (${Math.round(c.arb.kalPrice*100)}%)
-        </a>` : ''}`;
-    } else {
-      // Just divergence — show which side is cheaper where
-      const cheaperPoly  = d > 0; // Poly is higher → buy on Kalshi
-      actionCell = cheaperPoly
-        ? `<a class="act-link act-kal" href="${c.kal?.url ? kalshiUrl(c.kal) : '#'}" target="_blank" onclick="event.stopPropagation()">Дешевле на Kalshi (${Math.round(c.ky*100)}%)</a>`
-        : `<a class="act-link act-poly" href="${c.url}" target="_blank" onclick="event.stopPropagation()">Дешевле на Poly (${Math.round(c.py*100)}%)</a>`;
-    }
-
-    return `<tr class="crow${isArbC?' crow-arb':isDiffC?' crow-diff':''}">
+    return `<tr class="crow crow-diff">
       <td class="ct-name">${c.name}</td>
       <td class="ct-poly">${Math.round(c.py*100)}% <small>${dec(c.py)}</small></td>
-      <td class="ct-kal">${Math.round(c.ky*100)}% <small>${dec(c.ky)}</small></td>
+      <td class="ct-kal">${c.bookAvg != null ? Math.round(c.bookAvg*100)+'%' : '—'}</td>
       <td>${diffCell}</td>
       <td class="ct-action">${actionCell}</td>
     </tr>`;
   }).join('');
 
   const card = document.createElement('div');
-  card.className = `card group-card${isArb?' arb':isDiff?' diff':''}`;
+  card.className = `card group-card diff`;
   card.style.animationDelay = Math.min(i*.025,.6)+'s';
   card.dataset.id = ev.id;
   card.innerHTML = `
@@ -1081,7 +933,6 @@ function makeGroupCard(ev, i) {
           <span class="cat-tag">${ev.cat}</span>
           <span class="vol-tag">VOL: ${ev.volS} · до ${ev.end}</span>
           <a class="qlink qlink-poly" href="${ev.url}" target="_blank" onclick="event.stopPropagation()">↗ Polymarket</a>
-          ${ev.kalEventUrl ? `<a class="qlink qlink-kal" href="${ev.kalEventUrl}" target="_blank" onclick="event.stopPropagation()">↗ Kalshi</a>` : ''}
         </div>
       </div>
       <div class="group-badge">${spreadBadge}</div>
@@ -1089,18 +940,15 @@ function makeGroupCard(ev, i) {
     <div class="group-table-wrap">
       <table class="group-table">
         <thead><tr>
-          <th>Кандидат / Исход</th>
+          <th>Кандидат</th>
           <th style="color:var(--poly)">Polymarket</th>
-          <th style="color:var(--kalshi)">Kalshi</th>
+          <th style="color:var(--book)">Букмекеры</th>
           <th>Разница</th>
-          <th>Где купить</th>
+          <th>Действие</th>
         </tr></thead>
         <tbody>${rows}</tbody>
       </table>
     </div>`;
-  return card;
-}
-
 // Price cell — имя исхода + процент на одной строке
 function priceCell(cls, src, yes, no, yL, nL) {
   return `<div class="pc ${cls}">
@@ -1119,44 +967,22 @@ function priceCell(cls, src, yes, no, yL, nL) {
 }
 
 function buildDetail(ev) {
-  const isArb  = ev.arb?.type==='arb';
-  const isDiff = ev.arb?.type==='diff';
-  const kalUrl = kalshiUrl(ev.kal);
-
-  // Outcome label helpers — show the real name (e.g. "J.D. Vance") not just "Yes"/"No"
-  const polyYesName = ev.yL; // e.g. "J.D. Vance" or "Yes"
-  const polyNoName  = ev.nL; // e.g. "Not J.D. Vance" or "No"
-  const kalYesName  = ev.kal?.yes_sub_title || ev.yL;
-  const kalNoName   = ev.kal?.no_sub_title  || ev.nL;
+  const isArb   = ev.arb?.type === 'arb';
+  const polyYesName = ev.yL;
+  const polyNoName  = ev.nL;
 
   let explain = '';
-  if (isArb) {
-    const polyName = ev.arb.polyBuy === 'YES' ? polyYesName : polyNoName;
-    const kalName  = ev.arb.kalBuy  === 'YES' ? kalYesName  : kalNoName;
-    explain = `<div class="explain arb">
-      🟢 <strong>Арбитраж!</strong><br>
-      На <strong>Polymarket</strong>: купи <strong>«${polyName}»</strong> за <strong>${pct(ev.arb.polyPrice)}</strong><br>
-      На <strong>Kalshi</strong>: купи <strong>«${kalName}»</strong> за <strong>${pct(ev.arb.kalPrice)}</strong><br>
-      <br>
-      Итого вложено: <strong>${(ev.arb.cost*100).toFixed(1)}¢</strong> —
-      один из исходов всегда выплатит <strong>100¢</strong>.<br>
-      Гарантированная прибыль: <strong>+${(ev.arb.profit*100).toFixed(1)}¢ (${ev.arb.roi.toFixed(2)}% ROI)</strong>
-    </div>`;
-  } else if (isDiff) {
-    explain = `<div class="explain diff">
-      ⚡ <strong>${ev.arb.higher}</strong> оценивает «${polyYesName}» на <strong>${pct(ev.arb.diff)} выше</strong> чем ${ev.arb.lower}.
-    </div>`;
-  } else if (ev.arb?.type === 'bookdiff') {
-    const bd = ev.arb;
-    const icon  = bd.cheaperOn === 'books' ? '📉' : '📈';
+  if (ev.arb?.type === 'bookdiff') {
+    const bd   = ev.arb;
+    const icon = bd.cheaperOn === 'books' ? '📉' : '📈';
     const where = bd.cheaperOn === 'books'
       ? `Polymarket <strong>завышает</strong> «${polyYesName}» на ${pct(bd.diff)} относительно букмекеров`
       : `Polymarket <strong>занижает</strong> «${polyYesName}» на ${pct(bd.diff)} относительно букмекеров`;
     explain = `<div class="explain bookdiff">
-      ${icon} <strong>Расхождение с букмекерами</strong><br>
+      ${icon} <strong>Расхождение с букмекерами (+${pct(bd.diff)})</strong><br>
       ${where}<br>
-      Polymarket: <strong>${Math.round(bd.polyProb*100)}%</strong> · Ср. ${bd.bookCount} букмекеров: <strong>${Math.round(bd.bookProb*100)}%</strong><br>
-      <br>
+      Polymarket: <strong>${Math.round(bd.polyProb*100)}%</strong> &nbsp;·&nbsp;
+      Ср. ${bd.bookCount} букмекеров: <strong>${Math.round(bd.bookProb*100)}%</strong><br><br>
       <em>${bd.action}</em>
     </div>`;
   }
@@ -1177,38 +1003,11 @@ function buildDetail(ev) {
         </div>
       </div>
     </div>
-    ${ev.ky!=null ? `
-    <div class="db kal-b">
-      <div class="db-lbl">◈ Kalshi</div>
-      <div class="db-yn">
-        <div class="db-side">
-          <span class="db-side-lbl yes">✓ ${kalYesName}</span>
-          <span class="db-side-val" style="color:var(--green)">${Math.round(ev.ky*100)}%</span>
-          <span class="db-side-odds">${dec(ev.ky)}</span>
-        </div>
-        <div class="db-side">
-          <span class="db-side-lbl no">✗ ${kalNoName}</span>
-          <span class="db-side-val" style="color:var(--red)">${Math.round(ev.kn*100)}%</span>
-          <span class="db-side-odds">${dec(ev.kn)}</span>
-        </div>
-      </div>
-    </div>` : `
-    <div class="db">
-      <div class="db-lbl">◈ Kalshi</div>
-      <div class="db-nd">Событие не найдено на Kalshi</div>
-    </div>`}
     ${buildBookBox(ev)}
-    ${isArb ? `
-    <div class="db arb-b">
-      <div class="db-lbl">💰 Арбитраж</div>
-      <div class="db-side-val" style="color:var(--green);font-size:22px">+${ev.arb.roi.toFixed(2)}%</div>
-      <div class="db-side-odds">Стоимость ${(ev.arb.cost*100).toFixed(1)}¢ → прибыль +${(ev.arb.profit*100).toFixed(1)}¢</div>
-    </div>` : ''}
   </div>`;
 
   const links = `<div class="dlinks">
     <a href="${ev.url}" target="_blank" class="dlink poly">↗ Polymarket</a>
-    ${kalUrl ? `<a href="${kalUrl}" target="_blank" class="dlink kalshi">↗ Kalshi</a>` : ''}
   </div>`;
 
   return explain + boxes + links;
@@ -1261,8 +1060,7 @@ function buildBookBox(ev) {
   </div>`;
 }
 
-
-
+function toggleDet(id) {
   const el = document.getElementById(`det-${id}`);
   if (!el) return;
   const wasOpen = el.classList.contains('open');

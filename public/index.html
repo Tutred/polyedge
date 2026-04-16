@@ -244,8 +244,12 @@ async function loadAll() {
     bookMap = {};
     if (j.ok && j.markets?.length) {
       j.markets.forEach(bm => {
-        bookMap[norm(bm.title)] = bm;
+        // Futures: индексируем по team_name
+        if (bm.team_name) bookMap[norm(bm.team_name)] = bm;
+        if (bm.title)     bookMap[norm(bm.title)]     = bm;
+        // Game-level: индексируем по командам
         if (bm.home_team) bookMap[norm(bm.home_team)] = bm;
+        if (bm.away_team) bookMap[norm(bm.away_team)] = bm;
       });
       const n = getMaxBooks(j.markets);
       setSrc('srcBook', 'ok', `Букмекеры: ${j.markets.length} событий · ${n} контор ✓`);
@@ -280,8 +284,10 @@ async function silentRefresh() {
     if (j.ok && j.markets?.length) {
       bookMap = {};
       j.markets.forEach(bm => {
-        bookMap[norm(bm.title)] = bm;
+        if (bm.team_name) bookMap[norm(bm.team_name)] = bm;
+        if (bm.title)     bookMap[norm(bm.title)]     = bm;
         if (bm.home_team) bookMap[norm(bm.home_team)] = bm;
+        if (bm.away_team) bookMap[norm(bm.away_team)] = bm;
       });
       events = buildEvents(polyCache);
       const matched = events.filter(e => e.bookAvg != null).length;
@@ -379,41 +385,32 @@ function findBook(q, polyYesProb) {
 
   const qNorm = norm(q);
 
-  // Сезонные futures несовместимы с game-level odds
-  const isSeasonFuture = /\b(nba finals|nfl super bowl|stanley cup|world series|super bowl|nba champion|nhl champion|championship|win the series|win the title|western conference final|eastern conference final|conference champion)\b/i.test(q);
-  if (isSeasonFuture) return null;
+  // Для futures: ищем название команды/игрока из букмекера в вопросе Polymarket
+  // Polymarket: "Will Boston Celtics win 2026 NBA Finals?"
+  // Букмекер futures: team_name = "Boston Celtics"
+  // Совпадение: "boston" и "celtics" оба есть в вопросе ✓
 
   let best = null, bs = 0;
 
   for (const bm of Object.values(bookMap)) {
-    if (!bm.home_team || !bm.away_team) continue;
+    const teamName = bm.team_name || bm.home_team || bm.title || '';
+    if (!teamName) continue;
 
-    const homeN = norm(bm.home_team);
-    const awayN = norm(bm.away_team);
+    const teamWords = norm(teamName).split(' ').filter(w => w.length > 2);
+    if (!teamWords.length) continue;
 
-    // Разбиваем на слова (фамилии, названия команд)
-    const homeWords = homeN.split(' ').filter(w => w.length > 2);
-    const awayWords = awayN.split(' ').filter(w => w.length > 2);
-    if (!homeWords.length) continue;
+    // Все слова из названия команды должны быть в вопросе
+    const hits = teamWords.filter(w => qNorm.includes(w));
 
-    // Считаем сколько слов из обеих команд есть в вопросе
-    const homeHits = homeWords.filter(w => qNorm.includes(w)).length;
-    const awayHits = awayWords.filter(w => qNorm.includes(w)).length;
-    const totalHits = homeHits + awayHits;
+    // Минимум: все слова команды найдены (не частично)
+    if (hits.length < teamWords.length) continue;
 
-    // Минимум: хотя бы одно слово из home_team И суммарно 2+ совпадения
-    // ИЛИ: оба участника найдены (хотя бы по 1 слову каждый)
-    const bothFound = homeHits >= 1 && awayHits >= 1;
-    const goodMatch = bothFound || (homeHits >= 2 && awayHits === 0);
-
-    if (!goodMatch || totalHits < 2) continue;
-
-    // Ценовой фильтр — max 20pp разница
+    // Ценовой фильтр — futures могут сильнее расходиться, до 30pp
     if (polyYesProb != null && bm.yesProb != null) {
-      if (Math.abs(polyYesProb - bm.yesProb) > 0.20) continue;
+      if (Math.abs(polyYesProb - bm.yesProb) > 0.30) continue;
     }
 
-    if (totalHits > bs) { best = bm; bs = totalHits; }
+    if (hits.length > bs) { best = bm; bs = hits.length; }
   }
 
   return best;

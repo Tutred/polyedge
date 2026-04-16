@@ -693,7 +693,7 @@ function getBookUrl(key, b) {
   return null;
 }
 
-
+function toggleDet(id, event) {
   if (event) event.stopPropagation();
   const el = document.getElementById(`det-${id}`);
   if (!el) return;

@@ -378,37 +378,43 @@ function findBook(q, polyYesProb) {
   if (!q || !Object.keys(bookMap).length) return null;
 
   const qNorm = norm(q);
-  const qk = kws(q);
-  if (!qk.length) return null;
 
-  // Polymarket "championship/finals/cup/title" questions are SEASON-LONG futures.
-  // Bookmaker moneyline odds are for a SINGLE game today/tomorrow.
-  // These are incompatible — never match them.
-  const isChampionship = /champion|championship|finals|stanley cup|world series|super bowl|nba finals|nfl season|title|pennant|playoff|conference finals|conference semi/i.test(q);
-  if (isChampionship) return null; // Skip — bookmaker game odds can't match this
+  // ── Сезонные вопросы НЕЛЬЗЯ сравнивать с монейлайном на матч ──────────────
+  // SharpAPI даёт odds на конкретный матч (Celtics vs 76ers сегодня).
+  // Polymarket "win the Finals/Championship" — это весь сезон. Разные вещи.
+  const isSeasonFuture = /\b(finals|championship|stanley cup|world series|super bowl|nba finals|nfl season|title|pennant|conference finals|conference semi|western conference|eastern conference|win the cup|win the series|win the title|nba champion|nhl champion)\b/i.test(q);
+  if (isSeasonFuture) return null;
 
   let best = null, bs = 0;
 
   for (const bm of Object.values(bookMap)) {
     if (!bm.home_team || !bm.away_team) continue;
 
-    // Both team names must appear in the Polymarket question
-    const homeWords = kws(bm.home_team);
-    const awayWords = kws(bm.away_team);
+    // Нормализуем имена команд/бойцов для поиска
+    const homeN = norm(bm.home_team);
+    const awayN = norm(bm.away_team);
+
+    // Для UFC/бокса — ищем оба имени в вопросе
+    // Например: "Will Ilia Topuria beat Justin Gaethje?" → home="Ilia Topuria", away="Justin Gaethje"
+    const homeWords = homeN.split(' ').filter(w => w.length > 2);
+    const awayWords = awayN.split(' ').filter(w => w.length > 2);
+
     if (!homeWords.length || !awayWords.length) continue;
 
+    // Проверяем что ОБА участника упомянуты в вопросе
     const homeHit = homeWords.some(w => qNorm.includes(w));
     const awayHit = awayWords.some(w => qNorm.includes(w));
+
     if (!homeHit || !awayHit) continue;
 
-    // Price must be close — max 15pp difference
+    // Ценовой фильтр — максимум 15pp разница
     if (polyYesProb != null && bm.yesProb != null) {
       if (Math.abs(polyYesProb - bm.yesProb) > 0.15) continue;
     }
 
-    const hits = homeWords.filter(w => qNorm.includes(w)).length +
-                 awayWords.filter(w => qNorm.includes(w)).length;
-    if (hits > bs) { best = bm; bs = hits; }
+    const score = homeWords.filter(w => qNorm.includes(w)).length +
+                  awayWords.filter(w => qNorm.includes(w)).length;
+    if (score > bs) { best = bm; bs = score; }
   }
 
   return best;

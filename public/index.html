@@ -83,8 +83,8 @@ a{color:inherit;text-decoration:none}
 .st-none{background:rgba(255,255,255,.04);color:var(--muted);border-color:var(--border)}
 
 /* ── DETAIL ── */
-.detail{max-height:0;overflow:hidden;transition:max-height .3s ease}
-.detail.open{max-height:2000px}
+.detail{display:none}
+.detail.open{display:block}
 .det-inner{padding:16px 20px;border-top:1px solid var(--border);background:rgba(0,0,0,.2)}
 .explain{padding:10px 14px;border-radius:4px;font-size:13px;line-height:1.7;margin-bottom:12px}
 .explain.bookdiff{background:rgba(245,158,11,.07);border-left:3px solid var(--yellow)}
@@ -501,7 +501,7 @@ function makeCard(ev, i) {
   card.style.animationDelay = Math.min(i * .025, .6) + 's';
   card.dataset.id = ev.id;
   card.innerHTML = `
-    <div class="crow" onclick="toggleDet('${ev.id}')">
+    <div class="crow" onclick="toggleDet('${ev.id}', event)">
       <div class="e-info">
         <div class="etitle">${ev.q}</div>
         <div class="emeta">
@@ -582,16 +582,20 @@ function buildDetail(ev) {
     ${buildBookBox(ev)}
   </div>`;
 
-  // Собираем ссылки на букмекеров
+  // Ссылки на букмекеров — берём лучший deepLink от каждой конторы
   const bookLinks = ev.bm ? Object.entries(ev.bm.bookmakers || {})
     .filter(([, b]) => b.deepLink)
-    .slice(0, 4) // показываем максимум 4 ссылки
-    .map(([, b]) => `<a href="${b.deepLink}" target="_blank" class="dlink book">↗ ${b.name}</a>`)
+    .slice(0, 5)
+    .map(([, b]) => {
+      const odds = b.oddsDecimal ? ` (${b.oddsDecimal.toFixed(2)})` : '';
+      return `<a href="${b.deepLink}" target="_blank" class="dlink book">↗ ${b.name}${odds}</a>`;
+    })
     .join('') : '';
 
   return explain + boxes + `<div class="dlinks">
     <a href="${ev.url}" target="_blank" class="dlink poly">↗ Polymarket</a>
     ${bookLinks}
+    ${!bookLinks && ev.bm ? `<span style="font-size:10px;color:var(--muted)">Прямые ссылки недоступны на бесплатном тарифе SharpAPI</span>` : ''}
   </div>`;
 }
 
@@ -639,16 +643,12 @@ function buildBookBox(ev) {
   </div>`;
 }
 
-function toggleDet(id) {
+function toggleDet(id, event) {
+  if (event) event.stopPropagation();
   const el = document.getElementById(`det-${id}`);
   if (!el) return;
-  const wasOpen = el.classList.contains('open');
-  if (openId && openId !== id) {
-    const prev = document.getElementById(`det-${openId}`);
-    if (prev) prev.classList.remove('open');
-  }
-  el.classList.toggle('open', !wasOpen);
-  openId = wasOpen ? null : id;
+  el.classList.toggle('open');
+  openId = el.classList.contains('open') ? id : null;
 }
 
 // ════════════════════════════════════════════════════════

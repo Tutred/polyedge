@@ -107,7 +107,13 @@ a{color:inherit;text-decoration:none}
 .dlink.book:hover{background:rgba(245,158,11,.08)}
 
 /* ── BOOK ROWS ── */
-.book-rows{max-height:280px;overflow-y:auto}
+.variants{margin-top:6px;border-top:1px solid var(--border);padding-top:6px}
+.variant-row{display:flex;align-items:center;gap:8px;padding:3px 0;font-size:11px}
+.variant-q{flex:1;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.variant-poly{font-family:var(--mono);font-weight:700;min-width:32px;text-align:right}
+.variant-diff{font-family:var(--mono);font-size:10px;min-width:44px;text-align:right}
+.variant-link{color:var(--poly);opacity:.6;font-size:10px;flex-shrink:0}
+.variant-link:hover{opacity:1}
 .db-sub-hdr{display:flex;gap:6px;padding:3px 4px;font-size:9px;color:var(--muted);border-bottom:1px solid var(--border);margin-bottom:3px}
 .db-sub-hdr span:first-child{flex:1}
 .book-row{display:flex;align-items:center;gap:6px;padding:2px 4px;border-radius:2px;font-size:10px;font-family:var(--mono)}
@@ -316,26 +322,26 @@ async function fetchOdds() {
 }
 
 // ════════════════════════════════════════════════════════
-// BUILD EVENTS
+// BUILD EVENTS — с группировкой по команде/теме
 // ════════════════════════════════════════════════════════
 function buildEvents(polyMarkets) {
-  return polyMarkets
+  // Сначала строим все события
+  const all = polyMarkets
     .map(m => {
       const py = m.yesProb;
       if (!py || py < 0.02 || py > 0.98) return null;
 
-      const bm       = findBook(m.question, py);
-      const bookAvg  = bm?.yesProb ?? null;
-      const yL       = m.outcomes?.[0] || 'Yes';
-      const nL       = m.outcomes?.[1] || 'No';
+      const bm      = findBook(m.question, py);
+      const bookAvg = bm?.yesProb ?? null;
+      const yL      = m.outcomes?.[0] || 'Yes';
+      const nL      = m.outcomes?.[1] || 'No';
 
-      // Divergence: Polymarket vs bookmaker consensus
       let bookDiff = null;
       if (bookAvg != null) {
         const diff = py - bookAvg;
         if (Math.abs(diff) >= 0.01) {
           bookDiff = {
-            diff:      Math.abs(diff),
+            diff:       Math.abs(diff),
             polyHigher: diff > 0,
             polyProb:   py,
             bookProb:   bookAvg,
@@ -349,9 +355,7 @@ function buildEvents(polyMarkets) {
       }
 
       return {
-        id:  m.id,
-        q:   m.question,
-        yL, nL,
+        id: m.id, q: m.question, yL, nL,
         cat: guessCat(m.question, m.tags),
         py, pn: 1 - py,
         bookAvg, bm, bookDiff,
@@ -362,6 +366,53 @@ function buildEvents(polyMarkets) {
       };
     })
     .filter(Boolean);
+
+  // Группируем по команде — извлекаем ключевое имя из вопроса
+  const groups = {};
+  for (const ev of all) {
+    const key = getGroupKey(ev.q, ev.bm);
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(ev);
+  }
+
+  // Строим итоговый список — группы с несколькими вопросами объединяем
+  const result = [];
+  for (const [key, evs] of Object.entries(groups)) {
+    if (evs.length === 1) {
+      result.push(evs[0]);
+    } else {
+      // Группа: берём событие с наибольшим объёмом как основное
+      evs.sort((a, b) => b.vol - a.vol);
+      const main = evs[0];
+      result.push({
+        ...main,
+        id:       `group_${key}`,
+        isGroup:  true,
+        variants: evs,  // все варианты для показа в карточке
+        vol:      evs.reduce((s, e) => s + e.vol, 0),
+        volS:     fmtVol(evs.reduce((s, e) => s + e.vol, 0)),
+        // bookDiff берём от самого большого расхождения
+        bookDiff: evs.reduce((best, e) =>
+          (e.bookDiff?.diff || 0) > (best?.diff || 0) ? e.bookDiff : best, null),
+      });
+    }
+  }
+
+  return result;
+}
+
+// Ключ группировки — название команды/игрока из вопроса
+function getGroupKey(q, bm) {
+  // Если есть матч букмекера — группируем по team_name
+  if (bm?.team_name) return norm(bm.team_name).replace(/\s+/g, '_');
+
+  // Иначе извлекаем главное существительное из вопроса Polymarket
+  // "Will Denver Nuggets win the NBA Finals?" → "denver_nuggets"
+  // "Will Ilia Topuria beat Justin Gaethje?" → "ilia_topuria"
+  const m = q.match(/^Will\s+(.+?)\s+(win|beat|advance|make|be|finish|reach|qualify)/i);
+  if (m) return norm(m[1]).replace(/\s+/g, '_').slice(0, 30);
+
+  return norm(q).slice(0, 40).replace(/\s+/g, '_');
 }
 
 // ════════════════════════════════════════════════════════
@@ -450,6 +501,12 @@ function getMaxBooks(markets) {
 // RENDER
 // ════════════════════════════════════════════════════════
 function render() {
+  // Запоминаем какие карточки открыты ДО рендера
+  const openIds = new Set(
+    [...document.querySelectorAll('.detail.open')]
+      .map(el => el.id.replace('det-', ''))
+  );
+
   let list = [...events];
 
   if (filter === 'diff') list = list.filter(e => e.bookDiff != null);
@@ -472,6 +529,12 @@ function render() {
     return;
   }
   list.forEach((ev, i) => el.appendChild(makeCard(ev, i)));
+
+  // Восстанавливаем открытые карточки
+  openIds.forEach(id => {
+    const det = document.getElementById(`det-${id}`);
+    if (det) det.classList.add('open');
+  });
 }
 
 // ════════════════════════════════════════════════════════
@@ -480,9 +543,35 @@ function render() {
 function makeCard(ev, i) {
   const hasDiff = ev.bookDiff != null;
 
-  const polyCell = priceCell('poly', 'Polymarket', ev.py, ev.pn, ev.yL, ev.nL);
+  // Для группы заголовок = название команды, для одиночного = вопрос
+  const title = ev.isGroup
+    ? (ev.bm?.team_name || ev.bm?.title || ev.q)
+    : ev.q;
+
+  // Варианты для группы — список вопросов
+  const variantsHtml = ev.isGroup ? `
+    <div class="variants">
+      ${ev.variants.map(v => `
+        <div class="variant-row">
+          <span class="variant-q">${v.q}</span>
+          <span class="variant-poly" style="color:var(--poly)">${Math.round(v.py*100)}%</span>
+          ${v.bookDiff ? `<span class="variant-diff" style="color:${v.bookDiff.polyHigher?'var(--red)':'var(--green)'}">
+            ${v.bookDiff.polyHigher ? '▲' : '▼'} ${pct(v.bookDiff.diff)}
+          </span>` : ''}
+          <a href="${v.url}" target="_blank" onclick="event.stopPropagation()" class="variant-link">↗</a>
+        </div>`).join('')}
+    </div>` : '';
+
+  const polyCell = ev.isGroup
+    ? `<div class="pc poly">
+        <div class="pc-src">Polymarket · ${ev.variants.length} вопроса</div>
+        <div class="pc-row"><span class="pc-outcome-name">Макс.</span><span class="pc-val-main">${Math.round(Math.max(...ev.variants.map(v=>v.py))*100)}%</span></div>
+        <div class="pc-row"><span class="pc-outcome-name" style="color:var(--muted2)">Мин.</span><span class="pc-val-sub">${Math.round(Math.min(...ev.variants.map(v=>v.py))*100)}%</span></div>
+      </div>`
+    : priceCell('poly', 'Polymarket', ev.py, ev.pn, ev.yL, ev.nL);
+
   const bookCell = ev.bookAvg != null
-    ? priceCell('book', `${ev.bm?.bookCount||''}букм. · ${ev.bm?.home_team||''}`, ev.bookAvg, 1-ev.bookAvg, ev.yL, ev.nL)
+    ? priceCell('book', `${ev.bm?.bookCount||''}букм.`, ev.bookAvg, 1-ev.bookAvg, ev.yL, ev.nL)
     : `<div class="pc book"><div class="pc-src">Букмекеры</div><div class="pc-nd">нет данных</div></div>`;
 
   let spread;
@@ -503,12 +592,13 @@ function makeCard(ev, i) {
   card.innerHTML = `
     <div class="crow" onclick="toggleDet('${ev.id}', event)">
       <div class="e-info">
-        <div class="etitle">${ev.q}</div>
+        <div class="etitle">${title}</div>
         <div class="emeta">
           <span class="cat-tag">${ev.cat}</span>
           <span class="vol-tag">VOL: ${ev.volS} · до ${ev.end}</span>
-          <a class="qlink qlink-poly" href="${ev.url}" target="_blank" onclick="event.stopPropagation()">↗ Polymarket</a>
+          ${!ev.isGroup ? `<a class="qlink qlink-poly" href="${ev.url}" target="_blank" onclick="event.stopPropagation()">↗ Polymarket</a>` : `<span class="cat-tag" style="color:var(--poly)">${ev.variants.length} вопроса</span>`}
         </div>
+        ${variantsHtml}
       </div>
       ${polyCell}${bookCell}${spread}
     </div>
@@ -536,28 +626,51 @@ function priceCell(cls, src, yes, no, yL, nL) {
 // DETAIL PANEL
 // ════════════════════════════════════════════════════════
 function buildDetail(ev) {
-  const bm = ev.bm;
+  const bm       = ev.bm;
   const bookTeam = bm?.team_name || bm?.title || '';
+
+  // Для группы — таблица всех вопросов
+  let groupTable = '';
+  if (ev.isGroup && ev.variants?.length > 1) {
+    const rows = ev.variants.map(v => {
+      const diffStr = v.bookDiff
+        ? `<span style="color:${v.bookDiff.polyHigher?'var(--red)':'var(--green)'}">${v.bookDiff.polyHigher?'▲':'▼'} ${pct(v.bookDiff.diff)}</span>`
+        : '<span style="color:var(--muted)">—</span>';
+      return `<tr style="border-top:1px solid var(--border)">
+        <td style="padding:6px 8px;font-size:11px">${v.q}</td>
+        <td style="padding:6px 8px;font-family:var(--mono);color:var(--poly);font-weight:700">${Math.round(v.py*100)}%</td>
+        <td style="padding:6px 8px;font-family:var(--mono)">${diffStr}</td>
+        <td style="padding:6px 8px"><a href="${v.url}" target="_blank" style="color:var(--poly);font-size:10px">↗</a></td>
+      </tr>`;
+    }).join('');
+    groupTable = `<div style="margin-bottom:12px;border:1px solid var(--border);border-radius:6px;overflow:hidden">
+      <table style="width:100%;border-collapse:collapse">
+        <thead><tr style="background:rgba(0,0,0,.3);font-size:9px;color:var(--muted);text-transform:uppercase">
+          <th style="padding:5px 8px;text-align:left">Вопрос Polymarket</th>
+          <th style="padding:5px 8px;text-align:left">%</th>
+          <th style="padding:5px 8px;text-align:left">vs Букм.</th>
+          <th></th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+  }
 
   let explain = '';
   if (ev.bookDiff) {
     const bd = ev.bookDiff;
     const icon = bd.cheaperOn === 'books' ? '📉' : '📈';
-    const cheaperTxt = bd.cheaperOn === 'books'
-      ? `Покупай YES на Polymarket (${Math.round(bd.polyProb*100)}%) — это дешевле чем у букмекеров`
-      : `YES дешевле на Polymarket (${Math.round(bd.polyProb*100)}% vs ${Math.round(bd.bookProb*100)}% у букмекеров)`;
     explain = `<div class="explain bookdiff">
-      ${icon} <strong>Расхождение ${pct(bd.diff)}</strong> — Polymarket ${bd.cheaperOn==='books'?'завышает':'занижает'} вероятность<br>
-      <br>
+      ${icon} <strong>Расхождение ${pct(bd.diff)}</strong> — Polymarket ${bd.cheaperOn==='books'?'завышает':'занижает'} вероятность<br><br>
       <table style="font-size:12px;border-collapse:collapse;width:100%">
         <tr>
           <td style="padding:4px 8px;color:var(--muted);width:140px">Polymarket</td>
-          <td style="padding:4px 8px;font-weight:700;color:var(--poly)">${Math.round(bd.polyProb*100)}% <span style="font-size:10px;color:var(--muted)">(${dec(bd.polyProb)})</span></td>
+          <td style="padding:4px 8px;font-weight:700;color:var(--poly)">${Math.round(bd.polyProb*100)}% <small style="color:var(--muted)">(${dec(bd.polyProb)})</small></td>
           <td style="padding:4px 8px;font-size:11px;color:var(--muted)">«${ev.yL}»</td>
         </tr>
         <tr>
           <td style="padding:4px 8px;color:var(--muted)">Ср. ${bd.bookCount} букм.</td>
-          <td style="padding:4px 8px;font-weight:700;color:var(--book)">${Math.round(bd.bookProb*100)}% <span style="font-size:10px;color:var(--muted)">(${dec(bd.bookProb)})</span></td>
+          <td style="padding:4px 8px;font-weight:700;color:var(--book)">${Math.round(bd.bookProb*100)}% <small style="color:var(--muted)">(${dec(bd.bookProb)})</small></td>
           <td style="padding:4px 8px;font-size:11px;color:var(--muted)">${bookTeam ? `«${bookTeam}»` : 'тот же исход'}</td>
         </tr>
       </table>
@@ -566,7 +679,7 @@ function buildDetail(ev) {
 
   const boxes = `<div class="dboxes">
     <div class="db poly-b">
-      <div class="db-lbl">⬡ Polymarket — вопрос</div>
+      <div class="db-lbl">⬡ Polymarket</div>
       <div style="font-size:12px;color:var(--text);margin-bottom:10px;line-height:1.5;font-weight:500">${ev.q}</div>
       <div class="db-side">
         <span class="db-side-lbl" style="color:var(--green)">✓ ДА — ${ev.yL}</span>
@@ -582,20 +695,17 @@ function buildDetail(ev) {
     ${buildBookBox(ev)}
   </div>`;
 
-  // Ссылки на букмекеров — берём лучший deepLink от каждой конторы
   const bookLinks = ev.bm ? Object.entries(ev.bm.bookmakers || {})
     .slice(0, 4)
     .map(([key, b]) => {
-      const url = getBookUrl(key, b);
+      const url = getBookUrl(key, b, ev.bm.title || ev.bm.team_name || '');
       if (!url) return '';
       const odds = b.oddsDecimal ? ` ${b.oddsDecimal.toFixed(2)}` : '';
       return `<a href="${url}" target="_blank" class="dlink book">↗ ${b.name||key}${odds}</a>`;
-    })
-    .filter(Boolean)
-    .join('') : '';
+    }).filter(Boolean).join('') : '';
 
-  return explain + boxes + `<div class="dlinks">
-    <a href="${ev.url}" target="_blank" class="dlink poly">↗ Polymarket</a>
+  return groupTable + explain + boxes + `<div class="dlinks">
+    ${!ev.isGroup ? `<a href="${ev.url}" target="_blank" class="dlink poly">↗ Polymarket</a>` : ''}
     ${bookLinks}
   </div>`;
 }
@@ -624,7 +734,7 @@ function buildBookBox(ev) {
       ? `<span style="color:${d>0?'var(--green)':'var(--red)'};font-size:9px">${d>0?'+':''}${pct(d)}</span>` : '';
 
     // Строим прямую ссылку на сайт букмекера по ключу
-    const bookUrl = getBookUrl(key, b);
+    const bookUrl = getBookUrl(key, b, bm.title || bm.team_name || '');
     const link = bookUrl
       ? `<a href="${bookUrl}" target="_blank" class="book-bet-link" onclick="event.stopPropagation()" title="Открыть ${b.name||key}">↗</a>`
       : '';
@@ -647,47 +757,44 @@ function buildBookBox(ev) {
   </div>`;
 }
 
-// Прямые URL на сайты букмекеров
-// deepLink от SharpAPI работает только на платном тарифе,
-// поэтому строим URL на главную страницу спорта каждого букмекера
-function getBookUrl(key, b) {
-  // Если есть рабочий deepLink — используем его
-  if (b.deepLink && !b.deepLink.includes('api.sharpapi.io')) return b.deepLink;
+// Строим рабочие ссылки на поиск события у букмекера
+function getBookUrl(key, b, eventTitle) {
+  const k = (key || '').toLowerCase();
+  const q = encodeURIComponent(eventTitle || '');
 
-  const k = (key||'').toLowerCase();
-  const URLS = {
-    'fanduel':        'https://www.fanduel.com/sportsbook',
-    'draftkings':     'https://www.draftkings.com/sportsbook',
-    'betmgm':         'https://www.betmgm.com/sports',
-    'caesars':        'https://www.caesars.com/sportsbook-and-casino',
-    'betrivers':      'https://www.betrivers.com',
-    'pointsbetus':    'https://www.pointsbet.com',
-    'betonlineag':    'https://www.betonline.ag/sportsbook',
-    'bovada':         'https://www.bovada.lv/sports',
-    'mybookieag':     'https://www.mybookie.ag',
-    'bet365':         'https://www.bet365.com',
-    'betway':         'https://betway.com/sports',
-    'williamhill':    'https://www.williamhill.com/sports',
-    'williamhill_us': 'https://www.williamhill.com/us/nv/bet/sportsbook',
-    'unibet':         'https://www.unibet.com/betting',
-    'unibet_us':      'https://www.unibet.com/betting',
-    'betfair':        'https://www.betfair.com/sport',
-    'pinnacle':       'https://www.pinnacle.com/en/sports',
-    'lowvig':         'https://www.lowvig.ag',
-    'fanatics':       'https://sportsbook.fanatics.com',
-    'hardrock':       'https://www.hardrocksportsbook.com',
-    'bally':          'https://www.ballybets.com',
+  // Поисковые URL — реально работают
+  const SEARCH = {
+    'fanduel':        `https://www.fanduel.com/search?q=${q}`,
+    'draftkings':     `https://www.draftkings.com/search#${q}`,
+    'betmgm':         `https://sports.betmgm.com/en/sports`,
+    'caesars':        `https://www.caesars.com/sportsbook-and-casino/sports`,
+    'betrivers':      `https://www.betrivers.com/sports`,
+    'pointsbetus':    `https://www.pointsbet.com/sports`,
+    'betonlineag':    `https://www.betonline.ag/sportsbook`,
+    'bovada':         `https://www.bovada.lv/sports`,
+    'mybookieag':     `https://www.mybookie.ag/sportsbook`,
+    'bet365':         `https://www.bet365.com`,
+    'betway':         `https://betway.com/sports`,
+    'williamhill':    `https://www.williamhill.com/sports`,
+    'williamhill_us': `https://www.williamhill.com/us`,
+    'unibet':         `https://www.unibet.com/betting/sports`,
+    'unibet_us':      `https://www.unibet.com/betting`,
+    'betfair':        `https://www.betfair.com/sport`,
+    'pinnacle':       `https://www.pinnacle.com/en/sports`,
+    'lowvig':         `https://www.lowvig.ag/sportsbook`,
+    'fanatics':       `https://sportsbook.fanatics.com`,
+    'hardrock':       `https://www.hardrocksportsbook.com`,
+    'bally':          `https://www.ballybets.com/sports`,
   };
 
-  // Ищем по ключу
-  for (const [name, url] of Object.entries(URLS)) {
-    if (k.includes(name) || name.includes(k)) return url;
+  for (const [name, url] of Object.entries(SEARCH)) {
+    if (k === name || k.includes(name) || name.includes(k.split('_')[0])) return url;
   }
 
-  // Fallback — ищем по display name
-  const n = (b.name||'').toLowerCase();
-  for (const [name, url] of Object.entries(URLS)) {
-    if (n.includes(name) || name.includes(n.split(' ')[0])) return url;
+  // Fallback по display name
+  const n = (b.name || '').toLowerCase().replace(/\s+/g, '');
+  for (const [name, url] of Object.entries(SEARCH)) {
+    if (n.includes(name.replace(/_/g, '')) || name.replace(/_/g, '').includes(n)) return url;
   }
 
   return null;

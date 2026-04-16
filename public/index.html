@@ -379,10 +379,8 @@ function findBook(q, polyYesProb) {
 
   const qNorm = norm(q);
 
-  // ── Сезонные вопросы НЕЛЬЗЯ сравнивать с монейлайном на матч ──────────────
-  // SharpAPI даёт odds на конкретный матч (Celtics vs 76ers сегодня).
-  // Polymarket "win the Finals/Championship" — это весь сезон. Разные вещи.
-  const isSeasonFuture = /\b(finals|championship|stanley cup|world series|super bowl|nba finals|nfl season|title|pennant|conference finals|conference semi|western conference|eastern conference|win the cup|win the series|win the title|nba champion|nhl champion)\b/i.test(q);
+  // Сезонные futures несовместимы с game-level odds
+  const isSeasonFuture = /\b(nba finals|nfl super bowl|stanley cup|world series|super bowl|nba champion|nhl champion|championship|win the series|win the title|western conference final|eastern conference final|conference champion)\b/i.test(q);
   if (isSeasonFuture) return null;
 
   let best = null, bs = 0;
@@ -390,31 +388,32 @@ function findBook(q, polyYesProb) {
   for (const bm of Object.values(bookMap)) {
     if (!bm.home_team || !bm.away_team) continue;
 
-    // Нормализуем имена команд/бойцов для поиска
     const homeN = norm(bm.home_team);
     const awayN = norm(bm.away_team);
 
-    // Для UFC/бокса — ищем оба имени в вопросе
-    // Например: "Will Ilia Topuria beat Justin Gaethje?" → home="Ilia Topuria", away="Justin Gaethje"
+    // Разбиваем на слова (фамилии, названия команд)
     const homeWords = homeN.split(' ').filter(w => w.length > 2);
     const awayWords = awayN.split(' ').filter(w => w.length > 2);
+    if (!homeWords.length) continue;
 
-    if (!homeWords.length || !awayWords.length) continue;
+    // Считаем сколько слов из обеих команд есть в вопросе
+    const homeHits = homeWords.filter(w => qNorm.includes(w)).length;
+    const awayHits = awayWords.filter(w => qNorm.includes(w)).length;
+    const totalHits = homeHits + awayHits;
 
-    // Проверяем что ОБА участника упомянуты в вопросе
-    const homeHit = homeWords.some(w => qNorm.includes(w));
-    const awayHit = awayWords.some(w => qNorm.includes(w));
+    // Минимум: хотя бы одно слово из home_team И суммарно 2+ совпадения
+    // ИЛИ: оба участника найдены (хотя бы по 1 слову каждый)
+    const bothFound = homeHits >= 1 && awayHits >= 1;
+    const goodMatch = bothFound || (homeHits >= 2 && awayHits === 0);
 
-    if (!homeHit || !awayHit) continue;
+    if (!goodMatch || totalHits < 2) continue;
 
-    // Ценовой фильтр — максимум 15pp разница
+    // Ценовой фильтр — max 20pp разница
     if (polyYesProb != null && bm.yesProb != null) {
-      if (Math.abs(polyYesProb - bm.yesProb) > 0.15) continue;
+      if (Math.abs(polyYesProb - bm.yesProb) > 0.20) continue;
     }
 
-    const score = homeWords.filter(w => qNorm.includes(w)).length +
-                  awayWords.filter(w => qNorm.includes(w)).length;
-    if (score > bs) { best = bm; bs = score; }
+    if (totalHits > bs) { best = bm; bs = totalHits; }
   }
 
   return best;

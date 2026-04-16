@@ -1,131 +1,125 @@
-// api/odds.js — SharpAPI
-// Данные: конкретные матчи NBA/MLB/NHL/UFC сегодня и ближайшие дни
-// Хорошо матчится с Polymarket вопросами типа:
-// "Will Ilia Topuria beat Justin Gaethje?" или "Will LA Lakers beat Houston Rockets?"
+// api/odds.js — The Odds API с futures (outrights)
+// Это именно то что нужно для Polymarket:
+// Polymarket: "Will Boston Celtics win 2026 NBA Finals?" = 13%
+// The Odds API futures: "Boston Celtics to win NBA Championship" = ~15%
+// ЭТИ РЫНКИ СОВМЕСТИМЫ!
+//
+// Ключ: ODDS_API_KEY в Vercel Environment Variables
+// Регистрация: the-odds-api.com (бесплатно 500 кредитов/мес)
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=60');
+  res.setHeader('Cache-Control', 's-maxage=600, stale-while-revalidate=120');
 
-  const KEY = process.env.SHARP_API_KEY;
-  if (!KEY) {
+  const KEY = process.env.ODDS_API_KEY;
+
+  // Также попробуем SharpAPI если есть
+  const SHARP_KEY = process.env.SHARP_API_KEY;
+
+  if (!KEY && !SHARP_KEY) {
     return res.status(200).json({
       ok: false, error: 'NO_KEY',
-      message: 'Добавь SHARP_API_KEY в Vercel → Settings → Environment Variables',
+      message: 'Нужен ODDS_API_KEY (the-odds-api.com) — бесплатно 500 кредитов/мес',
       markets: [],
     });
   }
 
-  const BASE    = 'https://api.sharpapi.io/api/v1';
-  const HEADERS = { 'X-API-Key': KEY, 'Accept': 'application/json' };
-  const LEAGUES = ['nba','nfl','mlb','nhl','epl','mls','uefacl','ufc'];
+  const markets = [];
 
-  try {
-    const results = await Promise.all(
-      LEAGUES.map(lg => fetchLeague(BASE, HEADERS, lg))
-    );
-    const rawLines = results.flat();
+  // ── The Odds API — futures (outrights) ─────────────────────────────────────
+  // Это "кто выиграет чемпионат" — прямо совпадает с Polymarket
+  if (KEY) {
+    const FUTURES_SPORTS = [
+      'basketball_nba_championship_winner',
+      'americanfootball_nfl_super_bowl_winner',
+      'baseball_mlb_world_series_winner',
+      'icehockey_nhl_championship_winner',
+      'soccer_uefa_champs_league_winner',
+      'soccer_fifa_world_cup_winner',
+      'soccer_epl_winner',
+      'soccer_spain_la_liga_winner',
+      'soccer_germany_bundesliga_winner',
+    ];
 
-    // Группируем по паре команд + дата (убираем дубли от разных букмекеров)
-    const evMap = {};
-    for (const line of rawLines) {
-      if (!line?.home_team || !line?.away_team) continue;
+    await Promise.allSettled(FUTURES_SPORTS.map(async (sport) => {
+      try {
+        const url = `https://api.the-odds-api.com/v4/sports/${sport}/odds/` +
+          `?apiKey=${KEY}&regions=us,uk&markets=outrights&oddsFormat=decimal`;
+        const r = await fetch(url, { signal: AbortSignal.timeout(6000) });
+        if (!r.ok) return;
+        const games = await r.json();
+        if (!Array.isArray(games)) return;
 
-      // Ключ = "home_away_date" — объединяет дубли
-      const dateKey = (line.commence_time || line.id || '').slice(0, 10);
-      const homeKey = norm(line.home_team).replace(/\s+/g, '_');
-      const awayKey = norm(line.away_team).replace(/\s+/g, '_');
-      const key     = `${homeKey}_${awayKey}_${dateKey}`;
+        for (const g of games) {
+          // outrights — каждый исход это команда/игрок
+          for (const bookie of g.bookmakers || []) {
+            const outright = bookie.markets?.find(m => m.key === 'outrights');
+            if (!outright) continue;
 
-      if (!evMap[key]) {
-        evMap[key] = {
-          id:        key,
-          league:    line.league || '',
-          title:     line.event_name || `${line.home_team} vs ${line.away_team}`,
-          home_team: line.home_team,
-          away_team: line.away_team,
-          commence:  line.commence_time || null,
-          market_type: 'game',
-          bookmakers: {},
-          probs: [],
-        };
-      }
-      const ev = evMap[key];
+            for (const outcome of outright.outcomes || []) {
+              const name  = outcome.name;
+              const dec   = outcome.price;
+              if (!dec || dec < 1.01) continue;
+              const prob  = 1 / dec;
 
-      // Определяем: это odds на home team или away team?
-      const sel = (line.selection || '').toLowerCase();
-      const homeN = norm(line.home_team);
-      const isHome = sel === homeN || sel === 'home' || sel === '' ||
-                     (!sel && !line.selection);
+              const evKey = `${sport}__${norm(name)}`;
+              if (!evMap[evKey]) {
+                evMap[evKey] = {
+                  id: evKey, sport, league: sport,
+                  // title = "Boston Celtics to win NBA Championship"
+                  title:     name,
+                  team_name: name,
+                  market_type: 'futures',
+                  bookmakers: {}, probs: [],
+                };
+              }
+              const ev = evMap[evKey];
+              if (!ev.bookmakers[bookie.key]) {
+                ev.bookmakers[bookie.key] = {
+                  name: bookie.title, prob: Math.round(prob*10000)/10000,
+                  oddsDecimal: dec, oddsAmerican: null, deepLink: null,
+                };
+                ev.probs.push(prob);
+              }
+            }
+          }
+        }
+      } catch(e) { console.warn(`[odds] ${sport}:`, e.message); }
+    }));
 
-      if (!isHome) continue; // берём только home team вероятность
-
-      const d    = parseFloat(line.odds_decimal) || 0;
-      const prob = d > 1 ? (1/d) : (parseFloat(line.odds_probability) || 0);
-      if (!prob || prob < 0.02 || prob > 0.98) continue;
-
-      const sbKey = line.sportsbook || 'unknown';
-      if (!ev.bookmakers[sbKey]) {
-        ev.bookmakers[sbKey] = {
-          name:         line.sportsbook_name || sbKey,
-          prob:         Math.round(prob * 10000) / 10000,
-          oddsDecimal:  d || null,
-          oddsAmerican: line.odds_american || null,
-          deepLink:     line.deep_link || null,
-          evPct:        line.ev_percent || null,
-        };
-        ev.probs.push(prob);
-      }
+    // Build from evMap
+    for (const ev of Object.values(evMap)) {
+      if (!ev.probs.length) continue;
+      const avg = ev.probs.reduce((a,b)=>a+b,0) / ev.probs.length;
+      markets.push({
+        id: ev.id, sport: ev.sport, league: ev.league,
+        title: ev.title, team_name: ev.team_name,
+        market_type: 'futures',
+        yesProb: Math.round(Math.min(Math.max(avg,0.005),0.99)*10000)/10000,
+        bookCount: ev.probs.length,
+        bookmakers: ev.bookmakers,
+        bestDecimal: Math.max(...ev.probs) > 0 ? Math.round((1/Math.max(...ev.probs))*100)/100 : null,
+      });
     }
+  }
 
-    const markets = Object.values(evMap)
-      .filter(ev => ev.probs.length >= 1)
-      .map(ev => {
-        const avg  = ev.probs.reduce((a,b) => a+b, 0) / ev.probs.length;
-        const best = Math.max(...ev.probs);
-        return {
-          id:          ev.id,
-          league:      ev.league,
-          title:       ev.title,
-          home_team:   ev.home_team,
-          away_team:   ev.away_team,
-          commence:    ev.commence,
-          market_type: ev.market_type,
-          yesProb:     Math.round(Math.min(Math.max(avg,0.02),0.98) * 10000) / 10000,
-          bookCount:   ev.probs.length,
-          bookmakers:  ev.bookmakers,
-          bestDecimal: best > 0 ? Math.round((1/best)*100)/100 : null,
-        };
-      })
-      .sort((a,b) => (a.commence||'').localeCompare(b.commence||''));
-
-    res.status(200).json({
-      ok: true, markets, count: markets.length,
-      updatedAt: new Date().toISOString(),
+  if (!markets.length && !KEY) {
+    // Только SharpAPI без futures — объясняем
+    return res.status(200).json({
+      ok: false,
+      error: 'SHARP_NO_FUTURES',
+      message: 'SharpAPI не поддерживает futures. Нужен ODDS_API_KEY (the-odds-api.com) для сравнения с Polymarket.',
+      markets: [],
     });
-
-  } catch(e) {
-    console.error('[odds]', e.message);
-    res.status(200).json({ ok: false, error: e.message, markets: [] });
   }
+
+  res.status(200).json({
+    ok: true, markets, count: markets.length,
+    updatedAt: new Date().toISOString(),
+  });
 }
 
-async function fetchLeague(BASE, HEADERS, league) {
-  try {
-    const r = await fetch(
-      `${BASE}/odds?league=${league}&market=moneyline&limit=100`,
-      { headers: HEADERS, signal: AbortSignal.timeout(8000) }
-    );
-    if (!r.ok) { console.warn(`[odds] ${league}: ${r.status}`); return []; }
-    const j = await r.json();
-    const items = j.data || j.odds || (Array.isArray(j) ? j : []);
-    return items.map(i => ({ ...i, league }));
-  } catch(e) {
-    console.warn(`[odds] ${league}:`, e.message);
-    return [];
-  }
-}
-
+const evMap = {};
 function norm(t) {
   return (t||'').toLowerCase().replace(/[^a-z0-9 ]/g,' ').replace(/\s+/g,' ').trim();
 }

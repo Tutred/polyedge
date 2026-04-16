@@ -511,33 +511,45 @@ function priceCell(cls, src, yes, no, yL, nL) {
 // DETAIL PANEL
 // ════════════════════════════════════════════════════════
 function buildDetail(ev) {
+  const bm = ev.bm;
+  const bookTeam = bm?.team_name || bm?.title || '';
+
   let explain = '';
   if (ev.bookDiff) {
     const bd = ev.bookDiff;
     const icon = bd.cheaperOn === 'books' ? '📉' : '📈';
-    const txt  = bd.cheaperOn === 'books'
-      ? `Polymarket <strong>завышает</strong> «${ev.yL}» на ${pct(bd.diff)} vs букмекеры`
-      : `Polymarket <strong>занижает</strong> «${ev.yL}» на ${pct(bd.diff)} vs букмекеры`;
+    const cheaperTxt = bd.cheaperOn === 'books'
+      ? `Покупай YES на Polymarket (${Math.round(bd.polyProb*100)}%) — это дешевле чем у букмекеров`
+      : `YES дешевле на Polymarket (${Math.round(bd.polyProb*100)}% vs ${Math.round(bd.bookProb*100)}% у букмекеров)`;
     explain = `<div class="explain bookdiff">
-      ${icon} <strong>Расхождение ${pct(bd.diff)}</strong><br>
-      ${txt}<br>
-      Polymarket: <strong>${Math.round(bd.polyProb*100)}%</strong> &nbsp;·&nbsp;
-      Ср. ${bd.bookCount} контор: <strong>${Math.round(bd.bookProb*100)}%</strong><br><br>
-      <em>${bd.action}</em>
+      ${icon} <strong>Расхождение ${pct(bd.diff)}</strong> — Polymarket ${bd.cheaperOn==='books'?'завышает':'занижает'} вероятность<br>
+      <br>
+      <table style="font-size:12px;border-collapse:collapse;width:100%">
+        <tr>
+          <td style="padding:4px 8px;color:var(--muted);width:140px">Polymarket</td>
+          <td style="padding:4px 8px;font-weight:700;color:var(--poly)">${Math.round(bd.polyProb*100)}% <span style="font-size:10px;color:var(--muted)">(${dec(bd.polyProb)})</span></td>
+          <td style="padding:4px 8px;font-size:11px;color:var(--muted)">«${ev.yL}»</td>
+        </tr>
+        <tr>
+          <td style="padding:4px 8px;color:var(--muted)">Ср. ${bd.bookCount} букм.</td>
+          <td style="padding:4px 8px;font-weight:700;color:var(--book)">${Math.round(bd.bookProb*100)}% <span style="font-size:10px;color:var(--muted)">(${dec(bd.bookProb)})</span></td>
+          <td style="padding:4px 8px;font-size:11px;color:var(--muted)">${bookTeam ? `«${bookTeam}»` : 'тот же исход'}</td>
+        </tr>
+      </table>
     </div>`;
   }
 
   const boxes = `<div class="dboxes">
     <div class="db poly-b">
-      <div class="db-lbl">⬡ Polymarket</div>
-      <div style="font-size:11px;color:var(--muted);margin-bottom:8px;line-height:1.4">${ev.q}</div>
+      <div class="db-lbl">⬡ Polymarket — вопрос</div>
+      <div style="font-size:12px;color:var(--text);margin-bottom:10px;line-height:1.5;font-weight:500">${ev.q}</div>
       <div class="db-side">
-        <span class="db-side-lbl" style="color:var(--green)">✓ ${ev.yL}</span>
+        <span class="db-side-lbl" style="color:var(--green)">✓ ДА — ${ev.yL}</span>
         <span class="db-side-val" style="color:var(--green)">${Math.round(ev.py*100)}%</span>
         <span class="db-side-odds">${dec(ev.py)}</span>
       </div>
       <div class="db-side">
-        <span class="db-side-lbl" style="color:var(--red)">✗ ${ev.nL}</span>
+        <span class="db-side-lbl" style="color:var(--red)">✗ НЕТ — ${ev.nL}</span>
         <span class="db-side-val" style="color:var(--red)">${Math.round(ev.pn*100)}%</span>
         <span class="db-side-odds">${dec(ev.pn)}</span>
       </div>
@@ -546,7 +558,7 @@ function buildDetail(ev) {
   </div>`;
 
   return explain + boxes + `<div class="dlinks">
-    <a href="${ev.url}" target="_blank" class="dlink poly">↗ Polymarket</a>
+    <a href="${ev.url}" target="_blank" class="dlink poly">↗ Открыть на Polymarket</a>
   </div>`;
 }
 
@@ -554,12 +566,18 @@ function buildBookBox(ev) {
   const bm = ev.bm;
   if (!bm) return `<div class="db book-b">
     <div class="db-lbl">📊 Букмекеры</div>
-    <div style="font-size:11px;color:var(--muted);padding:4px 0">Добавь SHARP_API_KEY в Vercel</div>
+    <div style="font-size:11px;color:var(--muted);padding:4px 0">Нужен ODDS_API_KEY (the-odds-api.com)</div>
   </div>`;
 
-  const books   = Object.entries(bm.bookmakers || {}).sort((a,b) => (b[1].prob||0)-(a[1].prob||0));
-  const avg     = bm.yesProb;
+  const books = Object.entries(bm.bookmakers || {}).sort((a,b) => (b[1].prob||0)-(a[1].prob||0));
+  const avg   = bm.yesProb;
   if (!books.length) return `<div class="db book-b"><div class="db-lbl">📊 Букмекеры</div><div class="pc-nd">нет линий</div></div>`;
+
+  // Что именно оценивают букмекеры
+  const teamName  = bm.team_name || bm.title || '';
+  const marketCtx = bm.market_type === 'futures'
+    ? `Ставка: победа «${teamName}»`
+    : (bm.home_team ? `Матч: ${bm.home_team} vs ${bm.away_team}` : teamName);
 
   const rows = books.map(([key, b]) => {
     const prob  = b.prob || 0;
@@ -579,12 +597,11 @@ function buildBookBox(ev) {
     </div>`;
   }).join('');
 
-  const matchTitle = bm.title || (bm.home_team && bm.away_team ? `${bm.home_team} vs ${bm.away_team}` : '');
   return `<div class="db book-b">
     <div class="db-lbl">📊 Букмекеры</div>
-    ${matchTitle ? `<div style="font-size:11px;color:var(--muted);margin-bottom:6px;line-height:1.4">${matchTitle}</div>` : ''}
-    <div style="font-size:9px;color:var(--muted2);font-family:var(--mono);margin-bottom:6px">${books.length} контор · ср. ${Math.round(avg*100)}%${bm.bestDecimal ? ` · лучший: ${bm.bestDecimal}` : ''}</div>
-    <div class="db-sub-hdr"><span>Контора</span><span>Коэфф</span><span>Вер.</span><span>±avg/EV</span><span></span></div>
+    <div style="font-size:11px;color:var(--text);font-weight:500;margin-bottom:4px">${marketCtx}</div>
+    <div style="font-size:9px;color:var(--muted2);font-family:var(--mono);margin-bottom:8px">${books.length} контор · ср. ${Math.round(avg*100)}%${bm.bestDecimal ? ` · лучший коэфф: ${bm.bestDecimal}` : ''}</div>
+    <div class="db-sub-hdr"><span>Контора</span><span>Коэфф</span><span>Вер.</span><span>±avg</span><span></span></div>
     <div class="book-rows">${rows}</div>
   </div>`;
 }

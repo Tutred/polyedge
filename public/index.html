@@ -120,7 +120,15 @@ main{max-width:1440px;margin:0 auto;padding:20px 28px 80px}
 .ct-action { font-size:10px; }
 .arb-action a { color:var(--green); text-decoration:none; font-weight:600; padding:2px 6px; border:1px solid rgba(34,197,94,.3); border-radius:2px; margin:0 2px; }
 .arb-action a:hover { background:rgba(34,197,94,.1); }
-.group-table tfoot td { padding:8px 12px; font-size:10px; color:var(--muted); border-top:1px solid var(--border); }
+.book-rows{max-height:280px;overflow-y:auto}
+.db-sub-hdr{display:flex;gap:6px;padding:3px 4px;font-size:9px;color:var(--muted);border-bottom:1px solid var(--border);margin-bottom:3px}
+.db-sub-hdr span:first-child{flex:1}
+.book-bet-link{font-size:9px;font-family:var(--mono);color:var(--green);text-decoration:none;border:1px solid rgba(34,197,94,.3);padding:1px 5px;border-radius:2px;white-space:nowrap;margin-left:4px}
+.book-bet-link:hover{background:rgba(34,197,94,.1)}
+.book-row:hover{background:rgba(255,255,255,.04)}
+.book-name{flex:1;color:var(--muted2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100px;font-family:var(--sans);font-size:10px}
+.book-odds{color:var(--book);font-weight:700;min-width:32px;text-align:right}
+.book-prob{color:var(--text);min-width:28px;text-align:right}
 .qlink{font-family:var(--mono);font-size:9px;text-decoration:none;padding:1px 8px;border-radius:2px;border:1px solid;transition:opacity .15s;white-space:nowrap}
 .qlink:hover{opacity:1 !important}
 .qlink-poly{color:var(--poly);border-color:rgba(0,194,255,.25);opacity:.7}
@@ -166,7 +174,9 @@ main{max-width:1440px;margin:0 auto;padding:20px 28px 80px}
 .stag{font-family:var(--mono);font-size:11px;font-weight:700;padding:3px 8px;border-radius:3px}
 .st-arb {background:rgba(34,197,94,.12); color:var(--green); border:1px solid rgba(34,197,94,.25)}
 .st-diff{background:rgba(245,158,11,.1); color:var(--yellow);border:1px solid rgba(245,158,11,.25)}
+.st-book{background:rgba(251,191,36,.1); color:#fbbf24;     border:1px solid rgba(251,191,36,.3)}
 .st-none{background:rgba(255,255,255,.04);color:var(--muted); border:1px solid var(--border)}
+.explain.bookdiff{background:rgba(251,191,36,.07);border-left:3px solid #fbbf24;padding:10px 14px;border-radius:4px;font-size:13px;line-height:1.6;margin-bottom:10px}
 .ssub{font-family:var(--mono);font-size:8px;color:var(--muted)}
 
 /* ── DETAIL (expanded) ── */
@@ -229,6 +239,7 @@ main{max-width:1440px;margin:0 auto;padding:20px 28px 80px}
     <div class="hs"><div class="hs-v" id="hArb" style="color:var(--green)">—</div><div class="hs-l">Арбитраж</div></div>
     <div class="hs"><div class="hs-v" id="hDiff" style="color:var(--yellow)">—</div><div class="hs-l">Расхождение</div></div>
     <div class="hs"><div class="hs-v" id="hKal">—</div><div class="hs-l">Kalshi матчей</div></div>
+    <div class="hs"><div class="hs-v" id="hBook" style="color:var(--book)">—</div><div class="hs-l">vs Букмекеры</div></div>
   </div>
   <div class="hright">
     <div class="live"><div class="live-dot"></div>Live</div>
@@ -247,7 +258,8 @@ main{max-width:1440px;margin:0 auto;padding:20px 28px 80px}
 <div class="fbar">
   <button class="fbtn fa"  onclick="setF('all',this)">Все события</button>
   <button class="fbtn fg"  onclick="setF('arb',this)">🟢 Арбитраж</button>
-  <button class="fbtn"     onclick="setF('diff',this)">🟡 Расхождение ≥3%</button>
+  <button class="fbtn"     onclick="setF('diff',this)">🟡 Расхождение</button>
+  <button class="fbtn"     onclick="setF('bookdiff',this)">📊 vs Букмекеры</button>
   <div class="vsep"></div>
   <button class="fbtn" onclick="setF('Politics',this)">Политика</button>
   <button class="fbtn" onclick="setF('Sports',this)">Спорт</button>
@@ -285,236 +297,174 @@ main{max-width:1440px;margin:0 auto;padding:20px 28px 80px}
 // ════════════════════════════════
 // CONFIG
 // ════════════════════════════════
-const REFRESH = 60;
+const REFRESH_SEC = 90; // auto-refresh every 90 seconds
 
 // ════════════════════════════════
 // STATE
 // ════════════════════════════════
-let events = [], kalMap = {}, bookMap = {}, deepseekMatches = {}, filter = 'all', sortBy = 'arb';
-let cd = REFRESH, tmr = null, openId = null;
+let events = [], kalMap = {}, bookMap = {}, filter = 'all', sortBy = 'arb';
+let openId = null, refreshTimer = null, countdown = REFRESH_SEC;
 
 // ════════════════════════════════
 // INIT
 // ════════════════════════════════
-window.addEventListener('DOMContentLoaded', () => { loadAll(); startTimer(); });
+window.addEventListener('DOMContentLoaded', () => {
+  loadAll();
+  startCountdown();
+});
 
 // ════════════════════════════════
-// LOAD
+// LOAD — parallel fetch of all sources
 // ════════════════════════════════
 async function loadAll() {
-  showScr('load'); setText('loadTxt', 'Загрузка Polymarket...');
+  showScr('load');
+  setText('loadTxt', 'Загрузка данных...');
 
-  // 1. Polymarket — try /api/markets first, fall back to direct API
-  let poly = null;
-  const polyUrls = [
-    '/api/markets',
-    'https://gamma-api.polymarket.com/markets?active=true&closed=false&limit=50&order=volume&ascending=false',
-  ];
+  // Fetch all 3 sources in parallel
+  const [polyRes, kalRes, oddsRes] = await Promise.allSettled([
+    fetchPoly(),
+    fetchKalshi(),
+    fetchOdds(),
+  ]);
 
-  for (const url of polyUrls) {
-    try {
-      setText('loadTxt', url.startsWith('/') ? 'Загрузка Polymarket (через сервер)...' : 'Загрузка Polymarket (прямой запрос)...');
-      const r = await fetch(url, { signal: AbortSignal.timeout(10000) });
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      const j = await r.json();
-
-      // /api/markets returns { ok, markets }
-      // direct API returns array
-      const raw = j.markets || (Array.isArray(j) ? j : null);
-      if (!raw?.length) throw new Error('пустой ответ');
-
-      // Map raw Polymarket format if coming from direct API
-      poly = raw.map ? raw.map(item => {
-        // Already mapped by /api/markets (has .url field)
-        if (item.url) return item;
-
-        // Raw event from /events — extract markets
-        if (item.markets) {
-          return null; // handle below
-        }
-
-        // Raw market object
-        const m = item;
-        let prices = []; try { prices = JSON.parse(m.outcomePrices||'[]'); } catch {}
-        const yesProb = parseFloat(prices[0]) || 0.5;
-        if (yesProb < 0.02 || yesProb > 0.98) return null;
-        let outcomes = ['Yes','No']; try { outcomes = JSON.parse(m.outcomes||'["Yes","No"]'); } catch {}
-        let clobTokenId = null; try { const t=JSON.parse(m.clobTokenIds||'[]'); clobTokenId=t[0]||null; } catch {}
-        const mSlug = m.slug || '';
-        const eSlug = m.eventSlug || '';
-        return {
-          id: m.id, slug: mSlug, eventSlug: eSlug,
-          question: m.question||'', outcomes,
-          yesProb: Math.round(yesProb*1000)/1000,
-          volume: parseFloat(m.volume)||0,
-          endDate: m.endDate||null, createdAt: m.createdAt||null,
-          clobTokenId, tags: m.tags||[],
-          url: eSlug && mSlug
-            ? `https://polymarket.com/event/${eSlug}/${mSlug}`
-            : eSlug ? `https://polymarket.com/event/${eSlug}`
-            : `https://polymarket.com/market/${mSlug}`,
-        };
-      }).filter(Boolean) : [];
-
-      if (poly.length) {
-        setSrc('srcPoly','ok',`Polymarket: ${poly.length} маркетов ✓`);
-        break;
-      }
-    } catch(e) {
-      console.warn(`[Poly] ${url} failed:`, e.message);
-      if (url === polyUrls[polyUrls.length-1]) {
-        // All urls failed
-        setSrc('srcPoly','err',`Polymarket: ${e.message}`);
-        setText('errTxt', `Не удалось загрузить Polymarket.\n\nОшибка: ${e.message}\n\nПопробуй обновить страницу.`);
-        showScr('err'); return;
-      }
-    }
+  // ── Polymarket ────────────────────────────────────────────
+  let poly = [];
+  if (polyRes.status === 'fulfilled' && polyRes.value?.length) {
+    poly = polyRes.value;
+    setSrc('srcPoly', 'ok', `Polymarket: ${poly.length} маркетов ✓`);
+  } else {
+    setSrc('srcPoly', 'err', `Polymarket: ${polyRes.reason?.message || 'ошибка'}`);
+    setText('errTxt', 'Не удалось загрузить Polymarket. Обновите страницу.');
+    showScr('err'); return;
   }
 
-  // 2. Kalshi — try /api/kalshi first, fall back to direct API
-  setText('loadTxt', 'Загрузка Kalshi...');
+  // ── Kalshi ───────────────────────────────────────────────
   kalMap = {};
-  const kalUrls = [
-    '/api/kalshi',
-    'https://api.elections.kalshi.com/trade-api/v2/markets?limit=1000&status=active',
-  ];
+  if (kalRes.status === 'fulfilled' && kalRes.value?.length) {
+    kalRes.value.forEach(km => {
+      kalMap[norm(km.title)] = km;
+      if (km.ticker) kalMap[km.ticker.toLowerCase()] = km;
+    });
+    setSrc('srcKalshi', 'ok', `Kalshi: ${kalRes.value.length} маркетов ✓`);
+  } else {
+    setSrc('srcKalshi', 'wait', 'Kalshi: нет данных');
+  }
 
-  for (const url of kalUrls) {
-    try {
-      const r = await fetch(url, {
-        headers: { 'Accept': 'application/json' },
-        signal: AbortSignal.timeout(15000),
+  // ── Bookmakers ────────────────────────────────────────────
+  bookMap = {};
+  if (oddsRes.status === 'fulfilled') {
+    const j = oddsRes.value;
+    if (j.ok && j.markets?.length) {
+      j.markets.forEach(bm => {
+        bookMap[norm(bm.title)] = bm;
+        bookMap[norm(bm.home_team)] = bm;
       });
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      const j = await r.json();
+      setSrc('srcBook', 'ok', `Букмекеры: ${j.markets.length} событий · ${getMaxBookCount(j.markets)} контор ✓`);
+    } else if (j.error === 'NO_KEY') {
+      setSrc('srcBook', 'wait', '📋 Букмекеры: нужен ключ → the-odds-api.com (бесплатно)');
+    } else {
+      setSrc('srcBook', 'wait', `Букмекеры: ${j.message || 'нет данных'}`);
+    }
+  } else {
+    setSrc('srcBook', 'wait', 'Букмекеры: ошибка загрузки');
+  }
 
-      const raw = j.markets || [];
-      if (!raw.length) throw new Error('пустой ответ');
+  // ── Build & render ────────────────────────────────────────
+  events = buildGroupedEvents(poly);
+  const kalMatched = events.filter(e => e.candidates?.some(c => c.kal) || e.kal).length;
+  setSrc('srcAI', 'ok', `Матчинг: ${kalMatched} событий с Kalshi ✓`);
+  render();
+  showScr('app');
 
-      // Filter out multivariate combos and zero-price markets
-      const valid = raw.filter(m => {
-        if (m.mve_collection_ticker) return false;
-        if (m.market_type !== 'binary') return false;
-        const bid  = parseFloat(m.yes_bid_dollars  || '0');
-        const ask  = parseFloat(m.yes_ask_dollars  || '0');
-        const last = parseFloat(m.last_price_dollars || '0');
-        return Math.max(bid, ask, last) >= 0.02;
-      }).map(m => {
-        const bid  = parseFloat(m.yes_bid_dollars   || '0') || 0;
-        const ask  = parseFloat(m.yes_ask_dollars   || '0') || 0;
-        const last = parseFloat(m.last_price_dollars || '0') || 0;
-        let yesProb = (bid>=0.02&&ask>=0.02) ? (bid+ask)/2 : last||bid||ask;
-        yesProb = Math.round(Math.min(Math.max(yesProb,0.01),0.99)*10000)/10000;
-        return {
-          ticker: m.ticker, event_ticker: m.event_ticker||null,
-          title: m.title||m.ticker,
-          yes_sub_title: m.yes_sub_title||null, no_sub_title: m.no_sub_title||null,
-          yesProb, volume: parseFloat(m.volume_fp||'0')||0,
-          url: `https://kalshi.com/markets/${(m.series_ticker||m.event_ticker||m.ticker||'').toLowerCase()}/${(m.event_ticker||m.ticker||'').toLowerCase()}`,
-        };
-      });
+  const t = new Date().toLocaleTimeString('ru-RU');
+  setText('updR', `Обновлено ${t} · след. через `);
+  countdown = REFRESH_SEC;
+  toast(`✓ ${events.length} событий · ${kalMatched} на Kalshi`, 'ok');
+}
 
-      if (valid.length) {
-        valid.forEach(km => {
+function getMaxBookCount(markets) {
+  return Math.max(...markets.map(m => Object.keys(m.bookmakers || {}).length), 0);
+}
+
+// ── Fetchers ──────────────────────────────────────────────────────────────────
+async function fetchPoly() {
+  const r = await fetch('/api/markets', { signal: AbortSignal.timeout(12000) });
+  const j = await r.json();
+  if (!j.ok || !j.markets?.length) throw new Error(j.error || 'empty');
+  return j.markets;
+}
+
+async function fetchKalshi() {
+  const r = await fetch('/api/kalshi', { signal: AbortSignal.timeout(15000) });
+  const j = await r.json();
+  if (!j.ok || !j.markets?.length) throw new Error(j.error || 'empty');
+  return j.markets;
+}
+
+async function fetchOdds() {
+  const r = await fetch('/api/odds', { signal: AbortSignal.timeout(12000) });
+  return await r.json();
+}
+
+// ── Auto-refresh countdown ────────────────────────────────────────────────────
+function startCountdown() {
+  if (refreshTimer) clearInterval(refreshTimer);
+  countdown = REFRESH_SEC;
+  refreshTimer = setInterval(() => {
+    countdown--;
+    const el = $('updN');
+    if (el) el.textContent = countdown + 'с';
+    if (countdown <= 0) {
+      countdown = REFRESH_SEC;
+      silentRefresh();
+    }
+  }, 1000);
+}
+
+async function silentRefresh() {
+  try {
+    const [polyRes, kalRes, oddsRes] = await Promise.allSettled([
+      fetchPoly(), fetchKalshi(), fetchOdds(),
+    ]);
+
+    let changed = false;
+
+    if (polyRes.status === 'fulfilled' && polyRes.value?.length) {
+      // Update kalMap first
+      if (kalRes.status === 'fulfilled' && kalRes.value?.length) {
+        kalMap = {};
+        kalRes.value.forEach(km => {
           kalMap[norm(km.title)] = km;
           if (km.ticker) kalMap[km.ticker.toLowerCase()] = km;
         });
-        setSrc('srcKalshi','ok',`Kalshi: ${valid.length} маркетов ✓`);
-        break;
+        setSrc('srcKalshi', 'ok', `Kalshi: ${kalRes.value.length} маркетов ✓`);
       }
-    } catch(e) {
-      console.warn(`[Kalshi] ${url} failed:`, e.message);
-      if (url === kalUrls[kalUrls.length-1]) {
-        setSrc('srcKalshi','err',`Kalshi: ${e.message}`);
-      }
-    }
-  }
 
-  // 3. Bookmakers (The Odds API)
-  setText('loadTxt', 'Загрузка букмекеров...');
-  try {
-    const r = await fetch('/api/odds', { signal: AbortSignal.timeout(10000) });
-    const j = await r.json();
-    if (j.ok && j.markets?.length) {
-      // Index by title for matching
-      j.markets.forEach(bm => { bookMap[norm(bm.title)] = bm; });
-      setSrc('srcBook','ok',`Букмекеры: ${j.markets.length} событий ✓`);
-    } else {
-      setSrc('srcBook','wait', j.error === 'ODDS_API_KEY not set'
-        ? 'Букмекеры: нужен API ключ → the-odds-api.com'
-        : `Букмекеры: ${j.error || 'нет данных'}`);
+      if (oddsRes.status === 'fulfilled' && oddsRes.value?.ok) {
+        const j = oddsRes.value;
+        bookMap = {};
+        j.markets?.forEach(bm => {
+          bookMap[norm(bm.title)] = bm;
+          bookMap[norm(bm.home_team)] = bm;
+        });
+      }
+
+      events = buildGroupedEvents(polyRes.value);
+      changed = true;
+    }
+
+    if (changed) {
+      render();
+      setText('updR', `Обновлено ${new Date().toLocaleTimeString('ru-RU')} · след. через `);
     }
   } catch(e) {
-    setSrc('srcBook','wait','Букмекеры: нет данных');
-  }
-
-  // 4. Build events — group Polymarket markets by eventSlug first
-  events = buildGroupedEvents(poly);
-  render();
-  showScr('app');
-  setText('updR', `Обновлено ${new Date().toLocaleTimeString('ru-RU')} · обновление: `);
-  toast(`✓ ${events.length} событий загружено`, 'ok');
-
-  // 5. Матчинг встроен в buildEv через rule-aware findKalshi
-  const kalMatched = events.filter(e => e.candidates?.some(c=>c.kal) || e.kal).length;
-  setSrc('srcAI', 'ok', `Матчинг: ${kalMatched} совпадений с Kalshi ✓`);
-  setText('hKal', kalMatched);
-}
-
-// ════════════════════════════════
-// DEEPSEEK SEMANTIC MATCHING
-// Runs in background after initial render
-// ════════════════════════════════
-async function runDeepSeekMatch(polyMarkets, kalshiMarkets) {
-  setSrc('srcAI', 'wait', 'DeepSeek: анализирует...');
-  try {
-    const r = await fetch('/api/match', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ polyMarkets, kalshiMarkets }),
-      signal: AbortSignal.timeout(60000),
-    });
-    const j = await r.json();
-
-    if (!j.ok) {
-      if (j.error === 'DEEPSEEK_API_KEY not set') {
-        setSrc('srcAI', 'wait', 'DeepSeek: нужен ключ → platform.deepseek.com');
-      } else {
-        setSrc('srcAI', 'err', `DeepSeek: ${j.error}`);
-      }
-      return;
-    }
-
-    if (!j.matches?.length) {
-      setSrc('srcAI', 'ok', 'DeepSeek: нет совпадений');
-      return;
-    }
-
-    deepseekMatches = {};
-    j.matches.forEach(m => { deepseekMatches[m.polyId] = m; });
-
-    events.forEach(ev => {
-      const dm = deepseekMatches[ev.id];
-      if (!dm) return;
-      const km = kalMap[dm.kalshiTicker?.toLowerCase()] ||
-                 Object.values(kalMap).find(k => k.ticker === dm.kalshiTicker);
-      if (!km) return;
-      ev.kal = km;
-      ev.ky  = km.yesProb;
-      ev.kn  = 1 - km.yesProb;
-      if (dm.arb) ev.arb = dm.arb;
-    });
-
-    render();
-    const arbCount = events.filter(e => e.arb?.type === 'arb').length;
-    setSrc('srcAI', 'ok', `DeepSeek: ${j.matches.length} совпадений · ${arbCount} арбитражей ✓`);
-    toast(`🤖 DeepSeek нашёл ${arbCount} арбитражей`, 'ok');
-
-  } catch(e) {
-    setSrc('srcAI', 'err', `DeepSeek: ${e.message}`);
-    console.warn('DeepSeek match failed:', e.message);
+    console.warn('Silent refresh failed:', e.message);
   }
 }
+
+function manualRefresh() { loadAll(); startCountdown(); }
+
+
 
 // ════════════════════════════════
 // GROUP EVENTS
@@ -654,8 +604,6 @@ function buildEv(m) {
   if (!p || p < 0.02 || p > 0.98) return null;
 
   const km = findKalshi(m.question, p);
-
-  // Find bookmaker match by title similarity
   const bm = findBook(m.question);
   const bookAvg = bm?.yesProb ?? null;
 
@@ -664,88 +612,71 @@ function buildEv(m) {
   const ky = km?.yesProb ?? null;
   const kn = ky != null ? 1 - ky : null;
 
+  // ── Kalshi arbitrage ─────────────────────────────────────────────────────────
   let arb = null;
   if (ky != null) {
-    // ═══════════════════════════════════════════════════
-    // CORRECT ARBITRAGE MATH
-    //
-    // On a binary market: YES + NO = $1.00 (guaranteed)
-    //
-    // Cross-platform arb = buy YES on one platform AND NO on the OTHER,
-    // so that regardless of outcome, one side always pays $1.00.
-    //
-    // For this to be profitable: cost of both legs < $1.00
-    //
-    // Strategy A: YES on Polymarket (costs py) + NO on Kalshi (costs kn=1-ky)
-    //   → If event=YES: Poly pays $1, Kalshi pays $0. Total in = $1.
-    //   → If event=NO:  Poly pays $0, Kalshi pays $1. Total in = $1.
-    //   → Profit = $1 - (py + kn) ... only if py + kn < $1
-    //
-    // Strategy B: NO on Polymarket (costs pn) + YES on Kalshi (costs ky)
-    //   → If event=YES: Poly pays $0, Kalshi pays $1. Total in = $1.
-    //   → If event=NO:  Poly pays $1, Kalshi pays $0. Total in = $1.
-    //   → Profit = $1 - (pn + ky) ... only if pn + ky < $1
-    //
-    // IMPORTANT: pn + ky < 1 is NOT arb if they represent opposite outcomes!
-    // e.g. Poly YES=38% (J.D. Vance wins), Kalshi YES=20% (J.D. Vance wins)
-    // pn=62%, ky=20%, pn+ky=82¢ — but this is NOT arb:
-    //   if Vance wins: Poly NO pays $0, Kalshi YES pays $1 → net: $1 - $0.82 = +$0.18
-    //   if Vance loses: Poly NO pays $1, Kalshi YES pays $0 → net: $1 - $0.82 = +$0.18
-    // Wait — this WOULD be arb! But only if Poly NO and Kalshi YES are opposite outcomes.
-    // Poly NO = "Vance does NOT win", Kalshi YES = "Vance DOES win" → these are indeed opposite!
-    // So pn + ky < 1 IS a valid arb strategy (Strategy B).
-    //
-    // The INVALID case is when the same market is matched to a DIFFERENT event on Kalshi.
-    // We detect this by checking if prices are wildly different (>40pp gap).
-    // ═══════════════════════════════════════════════════
-
-    const costA = py + kn;   // Poly YES + Kalshi NO
-    const costB = pn + ky;   // Poly NO  + Kalshi YES
-
-    // Sanity: if prices differ by more than 40pp, likely a bad keyword match
+    const costA = py + kn;
+    const costB = pn + ky;
     const priceDiff = Math.abs(py - ky);
-    const likelyBadMatch = priceDiff > 0.40;
 
-    if (!likelyBadMatch) {
-      const isArbA = costA < 0.985;
-      const isArbB = costB < 0.985;
-      const roiA   = isArbA ? ((1 - costA) / costA) * 100 : 0;
-      const roiB   = isArbB ? ((1 - costB) / costB) * 100 : 0;
-
-      // Only show arb if ROI is realistic (0.5%–20%)
-      const validA = isArbA && roiA >= 0.5 && roiA <= 20;
-      const validB = isArbB && roiB >= 0.5 && roiB <= 20;
+    if (priceDiff <= 0.40) {
+      const roiA = costA < 1 ? ((1-costA)/costA)*100 : 0;
+      const roiB = costB < 1 ? ((1-costB)/costB)*100 : 0;
+      const validA = costA < 0.985 && roiA >= 0.5 && roiA <= 20;
+      const validB = costB < 0.985 && roiB >= 0.5 && roiB <= 20;
 
       if (validA || validB) {
-        const useA  = validA && (!validB || costA <= costB);
-        const cost  = useA ? costA : costB;
+        const useA = validA && (!validB || costA <= costB);
+        const cost = useA ? costA : costB;
         arb = {
-          type: 'arb',
-          cost, profit: 1 - cost, roi: ((1 - cost) / cost) * 100,
-          // Poly side
+          type: 'arb', cost, profit: 1-cost, roi: ((1-cost)/cost)*100,
+          source: 'kalshi',
           polyBuy:     useA ? 'YES' : 'NO',
           polyPrice:   useA ? py   : pn,
           polyOutcome: useA ? (m.outcomes?.[0]||'Yes') : (m.outcomes?.[1]||'No'),
-          // Kalshi side
           kalBuy:      useA ? 'NO'  : 'YES',
           kalPrice:    useA ? kn   : ky,
-          kalOutcome:  useA ? (km.no_sub_title  || m.outcomes?.[1] || 'No')
-                            : (km.yes_sub_title || m.outcomes?.[0] || 'Yes'),
+          kalOutcome:  useA ? (km.no_sub_title||m.outcomes?.[1]||'No') : (km.yes_sub_title||m.outcomes?.[0]||'Yes'),
         };
       } else {
-        // No arb — show divergence if ≥3%
         const diff = Math.abs(py - ky);
-        if (diff >= 0.03) {
-          arb = { type:'diff', diff,
-            higher: py > ky ? 'Polymarket' : 'Kalshi',
-            lower:  py > ky ? 'Kalshi'     : 'Polymarket',
-          };
-        }
+        if (diff >= 0.01) arb = { type:'diff', source:'kalshi', diff,
+          higher: py>ky ? 'Polymarket' : 'Kalshi',
+          lower:  py>ky ? 'Kalshi' : 'Polymarket' };
       }
     }
   }
 
-  // The event's YES outcome name (e.g. "J.D. Vance" or "Yes")
+  // ── Polymarket vs Bookmakers comparison ──────────────────────────────────────
+  // If bookmaker avg differs from Polymarket by ≥1% → show divergence
+  // Bookmakers don't offer binary prediction contracts so this isn't true arb,
+  // but it shows where Polymarket is mispriced vs the betting market consensus.
+  let bookDiff = null;
+  if (bookAvg != null) {
+    const diff = py - bookAvg; // positive = Poly higher than books
+    if (Math.abs(diff) >= 0.01) {  // ≥1% threshold
+      bookDiff = {
+        diff:   Math.abs(diff),
+        polyHigher: diff > 0,   // true = Poly overvalues YES, books are cheaper
+        polyProb:   py,
+        bookProb:   bookAvg,
+        bookCount:  bm?.bookCount || 0,
+        // Which side to buy: if Poly is higher, books give better odds on YES
+        // if Poly is lower, Polymarket gives better odds on YES
+        cheaperOn:  diff > 0 ? 'books' : 'polymarket',
+        action:     diff > 0
+          ? `YES дешевле у букмекеров (${Math.round(bookAvg*100)}% vs ${Math.round(py*100)}%)`
+          : `YES дешевле на Polymarket (${Math.round(py*100)}% vs ${Math.round(bookAvg*100)}%)`,
+      };
+    }
+  }
+
+  // Prefer kalshi arb over book diff in arb slot, but show both
+  // If no kalshi arb/diff, use bookDiff as the primary signal
+  if (!arb && bookDiff) {
+    arb = { type: 'bookdiff', ...bookDiff };
+  }
+
   const yLabel = m.outcomes?.[0] || 'Yes';
   const nLabel = m.outcomes?.[1] || 'No';
 
@@ -753,7 +684,9 @@ function buildEv(m) {
     id: m.id, q: m.question,
     yL: yLabel, nL: nLabel,
     cat: guessCat(m.question, m.tags),
-    py, pn, ky, kn, kal: km, bookAvg, bm, arb,
+    py, pn, ky, kn, kal: km,
+    bookAvg, bm, bookDiff,
+    arb,
     vol: m.volume || 0, volS: fmtVol(m.volume || 0),
     end: m.endDate ? new Date(m.endDate).toLocaleDateString('ru-RU',{day:'numeric',month:'short'}) : '—',
     url: m.url || (m.eventSlug && m.slug
@@ -953,34 +886,50 @@ function validateKalshiMatch(km, polyYesProb, polyQ) {
 }
 
 // Find bookmaker market matching Polymarket question
+// Bookmaker titles are like "Houston Rockets vs Golden State Warriors"
 function findBook(q) {
+  if (!q || !Object.keys(bookMap).length) return null;
+
   const exact = bookMap[norm(q)];
   if (exact) return exact;
+
   const qk = kws(q);
-  if (qk.length < 2) return null;
+  if (qk.length < 1) return null;
+
   let best = null, bs = 0;
   for (const bm of Object.values(bookMap)) {
-    const mk = kws(bm.title || '');
-    const hits = qk.filter(w => mk.includes(w));
+    if (!bm.title) continue;
+    // Skip if different sport
+    if (hasSportConflict(q, bm.title + ' ' + (bm.sport_key||''))) continue;
+
+    const mk = kws(bm.title);
+    // Also check home_team and away_team individually
+    const homek = kws(bm.home_team || '');
+    const awayk = kws(bm.away_team || '');
+    const allk  = [...new Set([...mk, ...homek, ...awayk])];
+
+    const hits  = qk.filter(w => allk.includes(w));
     const score = hits.length / Math.max(qk.length, mk.length);
-    if (hits.length >= 2 && score >= 0.4 && score > bs) { best = bm; bs = score; }
+    if (hits.length >= 1 && score >= 0.3 && score > bs) { best = bm; bs = score; }
   }
   return best;
 }
 function render() {
   let list = [...events];
-  if      (filter==='arb')  list = list.filter(e=>e.arb?.type==='arb');
-  else if (filter==='diff') list = list.filter(e=>e.arb!=null);
-  else if (filter!=='all')  list = list.filter(e=>e.cat===filter);
+  if      (filter==='arb')      list = list.filter(e=>e.arb?.type==='arb');
+  else if (filter==='diff')     list = list.filter(e=>e.arb?.type==='diff'||e.arb?.type==='bookdiff');
+  else if (filter==='bookdiff') list = list.filter(e=>e.arb?.type==='bookdiff');
+  else if (filter!=='all')      list = list.filter(e=>e.cat===filter);
 
-  if      (sortBy==='arb')  list.sort((a,b)=>(b.arb?.roi||0)-(a.arb?.roi||0));
-  else if (sortBy==='diff') list.sort((a,b)=>(b.arb?.diff||b.arb?.profit||0)-(a.arb?.diff||a.arb?.profit||0));
+  if      (sortBy==='arb')  list.sort((a,b)=>(b.arb?.roi||b.arb?.diff||0)-(a.arb?.roi||a.arb?.diff||0));
+  else if (sortBy==='diff') list.sort((a,b)=>(b.arb?.diff||b.arb?.roi||0)-(a.arb?.diff||a.arb?.roi||0));
   else                      list.sort((a,b)=>b.vol-a.vol);
 
   setText('hTotal', events.length);
   setText('hArb',   events.filter(e=>e.arb?.type==='arb').length);
-  setText('hDiff',  events.filter(e=>e.arb?.type==='diff').length);
-  setText('hKal',   events.filter(e=>e.kal).length);
+  setText('hDiff',  events.filter(e=>e.arb?.type==='diff'||e.arb?.type==='bookdiff').length);
+  setText('hKal',   events.filter(e=>e.kal||e.candidates?.some(c=>c.kal)).length);
+  setText('hBook',  events.filter(e=>e.bookAvg!=null).length);
 
   const el = $('list');
   el.innerHTML = '';
@@ -1003,13 +952,18 @@ function makeCard(ev, i) {
     ? priceCell('kalshi','Kalshi', ev.ky, ev.kn, ev.yL, ev.nL)
     : `<div class="pc kalshi"><div class="pc-src">Kalshi</div><div class="pc-nd">нет данных</div></div>`;
   const bookCell = ev.bookAvg != null
-    ? priceCell('book', 'Ср. букмекеры', ev.bookAvg, 1 - ev.bookAvg, ev.yL, ev.nL)
-    : `<div class="pc book"><div class="pc-src">Ср. букмекеры</div><div class="pc-nd">нет данных</div></div>`;
+    ? priceCell('book', `Ср. ${ev.bm?.bookCount||''}букм.`, ev.bookAvg, 1 - ev.bookAvg, ev.yL, ev.nL)
+    : `<div class="pc book"><div class="pc-src">Букмекеры</div><div class="pc-nd">нет ключа</div></div>`;
 
   let spread;
-  if (isArb)      spread = `<div class="sc"><div class="stag st-arb">+${ev.arb.roi.toFixed(1)}% ROI</div><div class="ssub">Арбитраж</div></div>`;
-  else if (isDiff) spread = `<div class="sc"><div class="stag st-diff">↕ ${pct(ev.arb.diff)}</div><div class="ssub">Расхождение</div></div>`;
-  else             spread = `<div class="sc"><div class="stag st-none">≈ 0%</div><div class="ssub">Согласуются</div></div>`;
+  if (isArb)
+    spread = `<div class="sc"><div class="stag st-arb">+${ev.arb.roi.toFixed(1)}% ROI</div><div class="ssub">Арбитраж</div></div>`;
+  else if (ev.arb?.type==='diff')
+    spread = `<div class="sc"><div class="stag st-diff">↕ ${pct(ev.arb.diff)}</div><div class="ssub">vs Kalshi</div></div>`;
+  else if (ev.arb?.type==='bookdiff')
+    spread = `<div class="sc"><div class="stag st-book">📊 ${pct(ev.arb.diff)}</div><div class="ssub">${ev.arb.cheaperOn==='books'?'Poly завышен':'Poly дешевле'}</div></div>`;
+  else
+    spread = `<div class="sc"><div class="stag st-none">≈</div><div class="ssub">Согласуются</div></div>`;
 
   const card = document.createElement('div');
   card.className = `card${isArb?' arb':isDiff?' diff':''}`;
@@ -1192,6 +1146,19 @@ function buildDetail(ev) {
     explain = `<div class="explain diff">
       ⚡ <strong>${ev.arb.higher}</strong> оценивает «${polyYesName}» на <strong>${pct(ev.arb.diff)} выше</strong> чем ${ev.arb.lower}.
     </div>`;
+  } else if (ev.arb?.type === 'bookdiff') {
+    const bd = ev.arb;
+    const icon  = bd.cheaperOn === 'books' ? '📉' : '📈';
+    const where = bd.cheaperOn === 'books'
+      ? `Polymarket <strong>завышает</strong> «${polyYesName}» на ${pct(bd.diff)} относительно букмекеров`
+      : `Polymarket <strong>занижает</strong> «${polyYesName}» на ${pct(bd.diff)} относительно букмекеров`;
+    explain = `<div class="explain bookdiff">
+      ${icon} <strong>Расхождение с букмекерами</strong><br>
+      ${where}<br>
+      Polymarket: <strong>${Math.round(bd.polyProb*100)}%</strong> · Ср. ${bd.bookCount} букмекеров: <strong>${Math.round(bd.bookProb*100)}%</strong><br>
+      <br>
+      <em>${bd.action}</em>
+    </div>`;
   }
 
   const boxes = `<div class="dboxes">
@@ -1230,10 +1197,7 @@ function buildDetail(ev) {
       <div class="db-lbl">◈ Kalshi</div>
       <div class="db-nd">Событие не найдено на Kalshi</div>
     </div>`}
-    <div class="db">
-      <div class="db-lbl">📊 Ср. 20 букмекеров</div>
-      <div class="db-nd">Нет данных<br><span style="font-size:9px">нужен ключ <a href="https://the-odds-api.com" target="_blank" style="color:var(--book)">the-odds-api.com</a></span></div>
-    </div>
+    ${buildBookBox(ev)}
     ${isArb ? `
     <div class="db arb-b">
       <div class="db-lbl">💰 Арбитраж</div>
@@ -1250,7 +1214,55 @@ function buildDetail(ev) {
   return explain + boxes + links;
 }
 
-function toggleDet(id) {
+// ── Bookmakers detail box (SharpAPI) ─────────────────────────────────────────
+function buildBookBox(ev) {
+  const bm = ev.bm;
+  if (!bm) {
+    return `<div class="db book-b">
+      <div class="db-lbl">📊 Букмекеры</div>
+      <div class="db-nd">Нет данных · <a href="https://sharpapi.io" target="_blank" style="color:var(--book)">sharpapi.io</a></div>
+    </div>`;
+  }
+
+  const books    = Object.entries(bm.bookmakers || {});
+  const avgProb  = bm.yesProb;
+  const homeTeam = bm.home_team || ev.yL || '';
+  if (!books.length) return `<div class="db book-b"><div class="db-lbl">📊 Букмекеры</div><div class="db-nd">${homeTeam}: нет линий</div></div>`;
+
+  books.sort((a, b) => (b[1].prob||0) - (a[1].prob||0));
+
+  const bookRows = books.map(([key, b]) => {
+    const prob  = b.prob || 0;
+    const dec   = b.oddsDecimal ? b.oddsDecimal.toFixed(2) : '—';
+    const amer  = b.oddsAmerican != null ? (b.oddsAmerican > 0 ? `+${b.oddsAmerican}` : `${b.oddsAmerican}`) : '';
+    const diff  = prob - avgProb;
+    const diffS = Math.abs(diff) >= 0.005
+      ? `<span style="color:${diff>0?'var(--green)':'var(--red)'};font-size:9px">${diff>0?'+':''}${pct(diff)}</span>` : '';
+    const evS   = b.evPct != null
+      ? `<span style="color:${b.evPct>0?'var(--green)':'var(--muted)'};font-size:9px;margin-left:3px">${b.evPct>0?'+':''}${b.evPct.toFixed(1)}%EV</span>` : '';
+    const link  = b.deepLink
+      ? `<a href="${b.deepLink}" target="_blank" class="book-bet-link" onclick="event.stopPropagation()">Bet →</a>` : '';
+    return `<div class="book-row">
+      <span class="book-name">${b.name||key}</span>
+      <span class="book-odds">${dec}${amer?` <small style="color:var(--muted)">${amer}</small>`:''}</span>
+      <span class="book-prob">${Math.round(prob*100)}%</span>
+      <span style="min-width:50px">${diffS}${evS}</span>
+      ${link}
+    </div>`;
+  }).join('');
+
+  const bestDec = bm.bestDecimal ? ` · лучший: <b>${bm.bestDecimal}</b>` : '';
+  return `<div class="db book-b">
+    <div class="db-lbl">📊 ${books.length} контор · ср. ${Math.round(avgProb*100)}%${bestDec}</div>
+    <div class="db-yn">
+      <div class="db-sub-hdr"><span>Контора</span><span>Коэфф</span><span>Вер.</span><span>±avg/EV</span><span></span></div>
+      <div class="book-rows">${bookRows}</div>
+    </div>
+  </div>`;
+}
+
+
+
   const el = document.getElementById(`det-${id}`);
   if (!el) return;
   const wasOpen = el.classList.contains('open');
@@ -1274,54 +1286,6 @@ function setF(f, btn) {
 function setSort(v) { sortBy=v; render(); }
 
 // ════════════════════════════════
-// AUTO REFRESH
-// ════════════════════════════════
-function startTimer() {
-  if (tmr) clearInterval(tmr); cd=REFRESH;
-  tmr = setInterval(async()=>{
-    cd--;
-    const el=$('updN'); if(el) el.textContent=cd+'с';
-    if(cd<=0){cd=REFRESH; await silentRefresh();}
-  },1000);
-}
-async function silentRefresh(){
-  try{
-    const[pd,kd]=await Promise.allSettled([
-      fetch('/api/markets',{signal:AbortSignal.timeout(9000)}).then(r=>r.json()),
-      fetch('/api/kalshi', {signal:AbortSignal.timeout(13000)}).then(r=>r.json()),
-    ]);
-
-    // Only update Polymarket data if successful
-    if(pd.status==='fulfilled' && pd.value.ok && pd.value.markets?.length){
-
-      // IMPORTANT: only reset kalMap if Kalshi actually returned data
-      // Otherwise keep old kalMap so we don't lose matches
-      if(kd.status==='fulfilled' && kd.value.ok && kd.value.markets?.length){
-        kalMap={};
-        kd.value.markets.forEach(km=>{
-          kalMap[norm(km.title)]=km;
-          if(km.ticker) kalMap[km.ticker.toLowerCase()]=km;
-        });
-        setSrc('srcKalshi','ok',`Kalshi: ${kd.value.markets.length} маркетов ✓`);
-      } else if(kd.status==='rejected' || !kd.value?.ok){
-        // Keep old kalMap — don't wipe it!
-        setSrc('srcKalshi','err',`Kalshi: ошибка (старые данные сохранены)`);
-      }
-
-      const ne=pd.value.markets.map(buildEv).filter(Boolean);
-      if(ne.length){
-        events=ne;
-        render();
-        setText('updR',`Обновлено ${new Date().toLocaleTimeString('ru-RU')} · обновление: `);
-      }
-    }
-  }catch(e){ console.warn('Refresh failed',e); }
-}
-function manualRefresh(){ cd=REFRESH; loadAll(); }
-
-// Debug — открой /api/debug в браузере для диагностики
-function openDebug(){ window.open('/api/debug','_blank'); }
-
 // ════════════════════════════════
 // HELPERS
 // ════════════════════════════════

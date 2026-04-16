@@ -316,7 +316,7 @@ function buildEvents(polyMarkets) {
       const py = m.yesProb;
       if (!py || py < 0.02 || py > 0.98) return null;
 
-      const bm       = findBook(m.question);
+      const bm       = findBook(m.question, py);
       const bookAvg  = bm?.yesProb ?? null;
       const yL       = m.outcomes?.[0] || 'Yes';
       const nL       = m.outcomes?.[1] || 'No';
@@ -358,40 +358,59 @@ function buildEvents(polyMarkets) {
 
 // ════════════════════════════════════════════════════════
 // BOOK MATCHING
+// Правила хорошего матча:
+// 1. Обе команды должны упоминаться в вопросе Polymarket
+// 2. Разница цен не более 25pp (иначе разные события)
+// 3. Одинаковый вид спорта
 // ════════════════════════════════════════════════════════
 function norm(t) {
   return (t||'').toLowerCase().replace(/[^a-z0-9 ]/g,' ').replace(/\s+/g,' ').trim();
 }
 
 const STOP = new Set(['will','the','a','an','in','on','at','to','of','for','be','is','are',
-  'was','by','or','and','that','this','with','have','not','win','wins']);
+  'was','by','or','and','that','this','with','have','not','win','wins','2026','2025','2027']);
 
 function kws(t) {
   return norm(t).split(' ').filter(w => w.length > 2 && !STOP.has(w));
 }
 
-function findBook(q) {
+function findBook(q, polyYesProb) {
   if (!q || !Object.keys(bookMap).length) return null;
-  const exact = bookMap[norm(q)];
-  if (exact) return exact;
 
+  const qNorm = norm(q);
   const qk = kws(q);
   if (!qk.length) return null;
 
+  // Polymarket "championship/finals/cup/title" questions are SEASON-LONG futures.
+  // Bookmaker moneyline odds are for a SINGLE game today/tomorrow.
+  // These are incompatible — never match them.
+  const isChampionship = /champion|championship|finals|stanley cup|world series|super bowl|nba finals|nfl season|title|pennant|playoff|conference finals|conference semi/i.test(q);
+  if (isChampionship) return null; // Skip — bookmaker game odds can't match this
+
   let best = null, bs = 0;
+
   for (const bm of Object.values(bookMap)) {
-    if (!bm.title) continue;
-    const allWords = [...new Set([
-      ...kws(bm.title),
-      ...kws(bm.home_team || ''),
-      ...kws(bm.away_team || ''),
-    ])];
-    const hits  = qk.filter(w => allWords.includes(w));
-    const score = hits.length / Math.max(qk.length, allWords.length);
-    if (hits.length >= 1 && score >= 0.3 && score > bs) {
-      best = bm; bs = score;
+    if (!bm.home_team || !bm.away_team) continue;
+
+    // Both team names must appear in the Polymarket question
+    const homeWords = kws(bm.home_team);
+    const awayWords = kws(bm.away_team);
+    if (!homeWords.length || !awayWords.length) continue;
+
+    const homeHit = homeWords.some(w => qNorm.includes(w));
+    const awayHit = awayWords.some(w => qNorm.includes(w));
+    if (!homeHit || !awayHit) continue;
+
+    // Price must be close — max 15pp difference
+    if (polyYesProb != null && bm.yesProb != null) {
+      if (Math.abs(polyYesProb - bm.yesProb) > 0.15) continue;
     }
+
+    const hits = homeWords.filter(w => qNorm.includes(w)).length +
+                 awayWords.filter(w => qNorm.includes(w)).length;
+    if (hits > bs) { best = bm; bs = hits; }
   }
+
   return best;
 }
 
@@ -436,7 +455,7 @@ function makeCard(ev, i) {
 
   const polyCell = priceCell('poly', 'Polymarket', ev.py, ev.pn, ev.yL, ev.nL);
   const bookCell = ev.bookAvg != null
-    ? priceCell('book', `${ev.bm?.bookCount||''}букм.`, ev.bookAvg, 1-ev.bookAvg, ev.yL, ev.nL)
+    ? priceCell('book', `${ev.bm?.bookCount||''}букм. · ${ev.bm?.home_team||''}`, ev.bookAvg, 1-ev.bookAvg, ev.yL, ev.nL)
     : `<div class="pc book"><div class="pc-src">Букмекеры</div><div class="pc-nd">нет данных</div></div>`;
 
   let spread;
@@ -509,6 +528,7 @@ function buildDetail(ev) {
   const boxes = `<div class="dboxes">
     <div class="db poly-b">
       <div class="db-lbl">⬡ Polymarket</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:8px;line-height:1.4">${ev.q}</div>
       <div class="db-side">
         <span class="db-side-lbl" style="color:var(--green)">✓ ${ev.yL}</span>
         <span class="db-side-val" style="color:var(--green)">${Math.round(ev.py*100)}%</span>
@@ -557,8 +577,11 @@ function buildBookBox(ev) {
     </div>`;
   }).join('');
 
+  const matchTitle = bm.title || (bm.home_team && bm.away_team ? `${bm.home_team} vs ${bm.away_team}` : '');
   return `<div class="db book-b">
-    <div class="db-lbl">📊 ${books.length} контор · ср. ${Math.round(avg*100)}%${bm.bestDecimal ? ` · лучший: ${bm.bestDecimal}` : ''}</div>
+    <div class="db-lbl">📊 Букмекеры</div>
+    ${matchTitle ? `<div style="font-size:11px;color:var(--muted);margin-bottom:6px;line-height:1.4">${matchTitle}</div>` : ''}
+    <div style="font-size:9px;color:var(--muted2);font-family:var(--mono);margin-bottom:6px">${books.length} контор · ср. ${Math.round(avg*100)}%${bm.bestDecimal ? ` · лучший: ${bm.bestDecimal}` : ''}</div>
     <div class="db-sub-hdr"><span>Контора</span><span>Коэфф</span><span>Вер.</span><span>±avg/EV</span><span></span></div>
     <div class="book-rows">${rows}</div>
   </div>`;

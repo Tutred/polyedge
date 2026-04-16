@@ -103,6 +103,8 @@ a{color:inherit;text-decoration:none}
 .dlink{font-size:11px;padding:5px 12px;border-radius:3px;border:1px solid;font-family:var(--mono);font-weight:600}
 .dlink.poly{color:var(--poly);border-color:rgba(0,194,255,.3)}
 .dlink.poly:hover{background:rgba(0,194,255,.08)}
+.dlink.book{color:var(--book);border-color:rgba(245,158,11,.3)}
+.dlink.book:hover{background:rgba(245,158,11,.08)}
 
 /* ── BOOK ROWS ── */
 .book-rows{max-height:280px;overflow-y:auto}
@@ -557,8 +559,16 @@ function buildDetail(ev) {
     ${buildBookBox(ev)}
   </div>`;
 
+  // Собираем ссылки на букмекеров
+  const bookLinks = ev.bm ? Object.entries(ev.bm.bookmakers || {})
+    .filter(([, b]) => b.deepLink)
+    .slice(0, 4) // показываем максимум 4 ссылки
+    .map(([, b]) => `<a href="${b.deepLink}" target="_blank" class="dlink book">↗ ${b.name}</a>`)
+    .join('') : '';
+
   return explain + boxes + `<div class="dlinks">
-    <a href="${ev.url}" target="_blank" class="dlink poly">↗ Открыть на Polymarket</a>
+    <a href="${ev.url}" target="_blank" class="dlink poly">↗ Polymarket</a>
+    ${bookLinks}
   </div>`;
 }
 

@@ -584,18 +584,19 @@ function buildDetail(ev) {
 
   // Ссылки на букмекеров — берём лучший deepLink от каждой конторы
   const bookLinks = ev.bm ? Object.entries(ev.bm.bookmakers || {})
-    .filter(([, b]) => b.deepLink)
-    .slice(0, 5)
-    .map(([, b]) => {
-      const odds = b.oddsDecimal ? ` (${b.oddsDecimal.toFixed(2)})` : '';
-      return `<a href="${b.deepLink}" target="_blank" class="dlink book">↗ ${b.name}${odds}</a>`;
+    .slice(0, 4)
+    .map(([key, b]) => {
+      const url = getBookUrl(key, b);
+      if (!url) return '';
+      const odds = b.oddsDecimal ? ` ${b.oddsDecimal.toFixed(2)}` : '';
+      return `<a href="${url}" target="_blank" class="dlink book">↗ ${b.name||key}${odds}</a>`;
     })
+    .filter(Boolean)
     .join('') : '';
 
   return explain + boxes + `<div class="dlinks">
     <a href="${ev.url}" target="_blank" class="dlink poly">↗ Polymarket</a>
     ${bookLinks}
-    ${!bookLinks && ev.bm ? `<span style="font-size:10px;color:var(--muted)">Прямые ссылки недоступны на бесплатном тарифе SharpAPI</span>` : ''}
   </div>`;
 }
 
@@ -621,15 +622,18 @@ function buildBookBox(ev) {
     const d     = prob - avg;
     const dStr  = Math.abs(d) >= 0.005
       ? `<span style="color:${d>0?'var(--green)':'var(--red)'};font-size:9px">${d>0?'+':''}${pct(d)}</span>` : '';
-    const evStr = b.evPct != null
-      ? `<span style="color:${b.evPct>0?'var(--green)':'var(--muted)'};font-size:9px;margin-left:2px">${b.evPct>0?'+':''}${b.evPct.toFixed(1)}%EV</span>` : '';
-    const link  = b.deepLink
-      ? `<a href="${b.deepLink}" target="_blank" class="book-bet-link" onclick="event.stopPropagation()">Bet→</a>` : '';
+
+    // Строим прямую ссылку на сайт букмекера по ключу
+    const bookUrl = getBookUrl(key, b);
+    const link = bookUrl
+      ? `<a href="${bookUrl}" target="_blank" class="book-bet-link" onclick="event.stopPropagation()" title="Открыть ${b.name||key}">↗</a>`
+      : '';
+
     return `<div class="book-row">
       <span class="book-name">${b.name||key}</span>
       <span class="book-odds">${b.oddsDecimal?.toFixed(2)||'—'}</span>
       <span class="book-prob">${Math.round(prob*100)}%</span>
-      <span style="min-width:50px;text-align:right">${dStr}${evStr}</span>
+      <span style="min-width:46px;text-align:right">${dStr}</span>
       ${link}
     </div>`;
   }).join('');
@@ -643,7 +647,53 @@ function buildBookBox(ev) {
   </div>`;
 }
 
-function toggleDet(id, event) {
+// Прямые URL на сайты букмекеров
+// deepLink от SharpAPI работает только на платном тарифе,
+// поэтому строим URL на главную страницу спорта каждого букмекера
+function getBookUrl(key, b) {
+  // Если есть рабочий deepLink — используем его
+  if (b.deepLink && !b.deepLink.includes('api.sharpapi.io')) return b.deepLink;
+
+  const k = (key||'').toLowerCase();
+  const URLS = {
+    'fanduel':        'https://www.fanduel.com/sportsbook',
+    'draftkings':     'https://www.draftkings.com/sportsbook',
+    'betmgm':         'https://www.betmgm.com/sports',
+    'caesars':        'https://www.caesars.com/sportsbook-and-casino',
+    'betrivers':      'https://www.betrivers.com',
+    'pointsbetus':    'https://www.pointsbet.com',
+    'betonlineag':    'https://www.betonline.ag/sportsbook',
+    'bovada':         'https://www.bovada.lv/sports',
+    'mybookieag':     'https://www.mybookie.ag',
+    'bet365':         'https://www.bet365.com',
+    'betway':         'https://betway.com/sports',
+    'williamhill':    'https://www.williamhill.com/sports',
+    'williamhill_us': 'https://www.williamhill.com/us/nv/bet/sportsbook',
+    'unibet':         'https://www.unibet.com/betting',
+    'unibet_us':      'https://www.unibet.com/betting',
+    'betfair':        'https://www.betfair.com/sport',
+    'pinnacle':       'https://www.pinnacle.com/en/sports',
+    'lowvig':         'https://www.lowvig.ag',
+    'fanatics':       'https://sportsbook.fanatics.com',
+    'hardrock':       'https://www.hardrocksportsbook.com',
+    'bally':          'https://www.ballybets.com',
+  };
+
+  // Ищем по ключу
+  for (const [name, url] of Object.entries(URLS)) {
+    if (k.includes(name) || name.includes(k)) return url;
+  }
+
+  // Fallback — ищем по display name
+  const n = (b.name||'').toLowerCase();
+  for (const [name, url] of Object.entries(URLS)) {
+    if (n.includes(name) || name.includes(n.split(' ')[0])) return url;
+  }
+
+  return null;
+}
+
+
   if (event) event.stopPropagation();
   const el = document.getElementById(`det-${id}`);
   if (!el) return;

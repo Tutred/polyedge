@@ -1,78 +1,117 @@
-// api/odds.js
-// The Odds API — bookmaker odds for events
-// Free tier: 500 requests/month at https://the-odds-api.com
-// Add ODDS_API_KEY to Vercel environment variables
+// api/odds.js — SharpAPI (sharpapi.io)
+// Free: 12 req/min, DraftKings + FanDuel
+// Hobby $79/mo: 32 sportsbooks + arbitrage
+// Add SHARP_API_KEY to Vercel → Settings → Environment Variables
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=60');
 
-  const key = process.env.ODDS_API_KEY;
-  if (!key) {
+  const KEY = process.env.SHARP_API_KEY;
+  if (!KEY) {
     return res.status(200).json({
-      ok: false,
-      error: 'ODDS_API_KEY not set',
+      ok: false, error: 'NO_KEY',
+      message: 'Добавь SHARP_API_KEY в Vercel → Settings → Environment Variables',
+      howto: 'sharpapi.io — бесплатно, без карты',
       markets: [],
-      hint: 'Get free key at https://the-odds-api.com and add to Vercel Environment Variables'
     });
   }
 
-  try {
-    // Fetch all available sports first, then get odds for key sports
-    const sports = ['americanfootball_nfl','basketball_nba','icehockey_nhl',
-                    'baseball_mlb','soccer_epl','soccer_spain_la_liga',
-                    'tennis_atp_french_open','mma_mixed_martial_arts'];
+  const BASE = 'https://api.sharpapi.io/api/v1';
+  const HEADERS = { 'X-API-Key': KEY, 'Accept': 'application/json' };
 
-    const results = [];
-    for (const sport of sports) {
-      try {
-        const r = await fetch(
-          `https://api.the-odds-api.com/v4/sports/${sport}/odds/?apiKey=${key}&regions=us&markets=h2h&oddsFormat=decimal&dateFormat=iso`,
-          { signal: AbortSignal.timeout(5000) }
-        );
-        if (!r.ok) continue;
-        const games = await r.json();
-        for (const g of games) {
-          // Get consensus probability from all bookmakers
-          const bookProbs = [];
-          for (const bookie of g.bookmakers || []) {
-            const h2h = bookie.markets?.find(m => m.key === 'h2h');
-            if (!h2h) continue;
-            // Find home team outcome
-            const home = h2h.outcomes?.find(o => o.name === g.home_team);
-            if (home?.price) bookProbs.push(1 / home.price);
-          }
-          if (!bookProbs.length) continue;
-          const avgProb = bookProbs.reduce((a,b) => a+b, 0) / bookProbs.length;
-          results.push({
-            id:          g.id,
-            sport:       sport,
-            title:       `${g.home_team} vs ${g.away_team}`,
-            home_team:   g.home_team,
-            away_team:   g.away_team,
-            commence:    g.commence_time,
-            yesProb:     Math.round(avgProb * 10000) / 10000, // home team wins
-            bookCount:   bookProbs.length,
-            bookmakers:  (g.bookmakers || []).map(b => ({
-              name: b.title,
-              prob: (() => {
-                const h2h = b.markets?.find(m => m.key === 'h2h');
-                const home = h2h?.outcomes?.find(o => o.name === g.home_team);
-                return home?.price ? Math.round((1/home.price)*10000)/10000 : null;
-              })()
-            })).filter(b => b.prob != null)
-          });
-        }
-      } catch(e) { /* skip sport */ }
+  const LEAGUES = ['nba','nfl','mlb','nhl','ncaab','ncaaf','epl','mls','uefacl','ufc'];
+
+  try {
+    // Fetch all leagues in parallel
+    const results = await Promise.all(
+      LEAGUES.map(league => fetchLeague(BASE, HEADERS, league))
+    );
+
+    const rawLines = results.flat();
+
+    // Group by event_id — collect all bookmaker lines per event
+    const evMap = {};
+    for (const line of rawLines) {
+      if (!line) continue;
+      const key = line.event_id || line.id || (line.home_team + '|' + line.away_team);
+      if (!evMap[key]) {
+        evMap[key] = {
+          id:        key,
+          sport:     line.sport    || '',
+          league:    line.league   || '',
+          title:     line.event_name || `${line.home_team||''} vs ${line.away_team||''}`,
+          home_team: line.home_team || '',
+          away_team: line.away_team || '',
+          commence:  line.commence_time || line.starts_at || null,
+          bookmakers: {},
+          homeProbs:  [],
+        };
+      }
+      const ev = evMap[key];
+      const isHome = !line.selection || line.selection === line.home_team;
+      if (!isHome) continue; // only track home team probability
+
+      const prob = line.odds_probability != null
+        ? line.odds_probability
+        : line.odds_decimal > 0 ? 1 / ev.odds_decimal : null;
+      if (!prob || prob < 0.01 || prob > 0.99) continue;
+
+      const sbKey  = line.sportsbook || 'unknown';
+      const sbName = line.sportsbook_name || sbKey;
+      const dec    = line.odds_decimal || null;
+      const amer   = line.odds_american || null;
+
+      // Remove vig: fairProb = homeProb / (homeProb + awayProb)
+      // We don't have awayProb here so just use raw prob (vig ~5% typical)
+      ev.bookmakers[sbKey] = { name: sbName, prob, oddsDecimal: dec, oddsAmerican: amer,
+                               deepLink: line.deep_link || null, evPct: line.ev_percent || null };
+      ev.homeProbs.push(prob);
     }
 
-    res.status(200).json({
-      ok: true,
-      markets: results,
-      count: results.length,
-      updatedAt: new Date().toISOString()
-    });
+    // Build final market list
+    const markets = Object.values(evMap)
+      .filter(ev => ev.homeProbs.length >= 1)
+      .map(ev => {
+        const avg = ev.homeProbs.reduce((a,b) => a+b, 0) / ev.homeProbs.length;
+        const best = Math.max(...ev.homeProbs);
+        return {
+          id:        ev.id,
+          sport:     ev.sport,
+          league:    ev.league,
+          title:     ev.title,
+          home_team: ev.home_team,
+          away_team: ev.away_team,
+          commence:  ev.commence,
+          yesProb:   Math.round(Math.min(Math.max(avg, 0.01), 0.99) * 10000) / 10000,
+          bookCount: ev.homeProbs.length,
+          bookmakers: ev.bookmakers,
+          bestDecimal: best > 0 ? Math.round((1/best)*100)/100 : null,
+        };
+      })
+      .sort((a,b) => new Date(a.commence) - new Date(b.commence));
+
+    res.status(200).json({ ok: true, markets, count: markets.length, updatedAt: new Date().toISOString() });
+
   } catch(e) {
-    res.status(500).json({ ok: false, error: e.message, markets: [] });
+    console.error('[sharp]', e.message);
+    res.status(200).json({ ok: false, error: e.message, markets: [] });
+  }
+}
+
+async function fetchLeague(BASE, HEADERS, league) {
+  try {
+    const r = await fetch(`${BASE}/odds?league=${league}&market=moneyline&limit=100`, {
+      headers: HEADERS, signal: AbortSignal.timeout(7000),
+    });
+    if (!r.ok) {
+      if (r.status === 401) throw new Error('Неверный API ключ');
+      return [];
+    }
+    const j = await r.json();
+    return j.data || j.odds || (Array.isArray(j) ? j : []);
+  } catch(e) {
+    console.warn(`[sharp] ${league}:`, e.message);
+    return [];
   }
 }
